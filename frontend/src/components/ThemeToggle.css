@@ -1,0 +1,31 @@
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: calc(11px * 1.5);
+  transition: background .2s ease, border-color .2s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--surface-raised);
+}
+
+.theme-toggle__icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.theme-toggle__label {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .theme-toggle__label {
+    display: none;
+  }
+}

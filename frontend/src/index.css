@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  font-family: 'DM Sans', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --font-heading: 'Manrope', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --green: #c6e67a;
+  --blue: #14a3c7;
+  --brown: #8a6546;
+
+  font-size: calc(14px * 1.5);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --page-background: #fff;
+  --surface: #fff;
+  --surface-raised: #f7faef;
+  --surface-overlay: rgb(255 255 255 / 96%);
+  --text: #59432f;
+  --text-secondary: #765a3e;
+  --text-muted: #92785e;
+  --border: #e4d8ca;
+  --sidebar: var(--blue);
+  --sidebar-text: #fff;
+  --sidebar-link: #fff;
+  --sidebar-muted: #fff;
+  --sidebar-border: #378eaa;
+  --sidebar-active: var(--green);
+  --map-background: #fff;
+  --accent: var(--green);
+  --accent-soft: #f1f8df;
+  --button-text: #392b1e;
+  --danger: #765a3e;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --page-background: #771441;
+  --surface: #641136;
+  --surface-raised: #85234f;
+  --surface-overlay: rgb(100 17 54 / 96%);
+  --text: #e5d5e1;
+  --text-secondary: #e5d5e1;
+  --text-muted: #ede288;
+  --border: #a64b70;
+  --sidebar: #641136;
+  --sidebar-text: #e5d5e1;
+  --sidebar-link: #e5d5e1;
+  --sidebar-muted: #ede288;
+  --sidebar-border: #a64b70;
+  --sidebar-active: #85234f;
+  --map-background: #771441;
+  --accent: #daa43c;
+  --accent-soft: #85234f;
+  --button-text: #771441;
+  --danger: #ede288;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--page-background);
+}
+
+button,
+input,
+select { font: inherit; }
+
+button { cursor: pointer; }
+
+h1,
+h2,
+p { color: inherit; }
+
+h1,
+h2,
+p { margin-top: 0; }
+
+#root { min-height: 100vh; }
+
+::selection { background: var(--accent); color: var(--button-text); }
