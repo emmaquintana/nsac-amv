@@ -21,6 +21,14 @@
   font-size: calc(10px * 1.5);
 }
 
+.time-series__chart { display: flex; min-height: 330px; flex: 1; flex-direction: column; justify-content: flex-end; margin-top: 28px; }
+.time-series__bars { display: flex; min-height: 250px; align-items: flex-end; gap: 3px; border-bottom: 1px solid var(--border); }
+.time-series__bar-column { display: flex; min-width: 4px; flex: 1; height: 100%; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.time-series__bar-column > span { color: var(--text-muted); font-size: 9px; }
+.time-series__bar-column > div { width: 100%; min-height: 3px; border-radius: 3px 3px 0 0; background: #ed8b39; }
+.time-series__labels { display: flex; justify-content: space-between; padding-top: 7px; color: var(--text-muted); font: 10px var(--font-mono); }
+.time-series__chart > p { color: var(--text-muted); font-size: 12px; }
+
 .time-series__date-range {
   display: inline-block;
   margin-top: 9px;

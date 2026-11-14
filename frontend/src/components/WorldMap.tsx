@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AppliedFilters } from '../types/app'
+import { getObservations, type Observation } from '../services/api'
 import { EmptyState } from './EmptyState'
 import './WorldMap.css'
 
@@ -9,6 +10,26 @@ type WorldMapProps = {
 
 export function WorldMap({ filters }: WorldMapProps) {
   const mapElement = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<LeafletMap | null>(null)
+  const markersRef = useRef<LeafletLayerGroup | null>(null)
+  const [observations, setObservations] = useState<Observation[]>([])
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    getObservations(filters)
+      .then((rows) => {
+        const filtered = filters.regions.length === 6
+          ? rows
+          : rows.filter((item) => item.continent && filters.regions.includes(item.continent))
+        if (active) { setObservations(filtered); setError('') }
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'No se pudieron cargar los datos.')
+      })
+    return () => { active = false }
+  }, [filters])
+
   useEffect(() => {
     if (!mapElement.current || !window.L) {
       return
@@ -23,13 +44,33 @@ export function WorldMap({ filters }: WorldMapProps) {
         maxZoom: 19,
       },
     ).addTo(map)
+    const markers = window.L.layerGroup().addTo(map)
+    mapRef.current = map
+    markersRef.current = markers
 
     // El contenedor empieza oculto en una vista con pestañas; al montarlo se
     // recalculan sus dimensiones para que Leaflet renderice la tesela completa.
     requestAnimationFrame(() => map.invalidateSize())
 
-    return () => map.remove()
+    return () => { map.remove(); mapRef.current = null; markersRef.current = null }
   }, [])
+
+  useEffect(() => {
+    const markers = markersRef.current
+    if (!markers || !window.L) return
+    markers.clearLayers()
+    observations.forEach((item) => {
+      const marker = window.L.circleMarker([item.latitude, item.longitude], {
+        radius: Math.max(3, Math.min(9, 3 + (item.frp ?? 0) / 20)),
+        color: item.source === 'MODIS' ? '#f07832' : '#edba32',
+        fillColor: item.source === 'MODIS' ? '#f07832' : '#edba32',
+        fillOpacity: 0.72,
+        weight: 1,
+      })
+      marker.bindPopup(`<strong>${item.source}${item.satellite ? ` · ${item.satellite}` : ''}</strong><br>${new Date(item.detected_at).toLocaleString('es-AR')}<br>FRP: ${item.frp ?? 's/d'} MW`)
+      marker.addTo(markers)
+    })
+  }, [observations])
 
   return (
     <section className="world-map" aria-labelledby="world-map-title">
@@ -42,9 +83,8 @@ export function WorldMap({ filters }: WorldMapProps) {
 
       <div className="world-map__canvas">
         <div className="world-map__leaflet" ref={mapElement} />
-        <div className="world-map__empty-overlay">
-          <EmptyState detail="No hay observaciones disponibles para los filtros seleccionados." />
-        </div>
+        {error ? <div className="world-map__message" role="alert">{error}. Comprueba que el backend esté activo.</div>
+          : observations.length === 0 && <div className="world-map__empty-overlay"><EmptyState detail="No hay observaciones disponibles para los filtros seleccionados." /></div>}
       </div>
 
       <footer className="world-map__footer">
@@ -52,7 +92,7 @@ export function WorldMap({ filters }: WorldMapProps) {
         <span>
           {filters.startDate && filters.endDate
             ? `${filters.startDate} — ${filters.endDate}`
-            : 'Sin observaciones térmicas'}
+            : `${observations.length.toLocaleString('es-AR')} observaciones`}
         </span>
       </footer>
     </section>

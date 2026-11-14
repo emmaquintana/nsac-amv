@@ -51,6 +51,8 @@
   pointer-events: none;
 }
 
+.world-map__message { position: absolute; z-index: 500; top: 12px; left: 50%; transform: translateX(-50%); padding: 10px 14px; border-radius: 6px; background: var(--surface-overlay); color: var(--text); box-shadow: 0 3px 14px rgb(0 0 0 / 14%); }
+
 .world-map__empty-overlay .empty-state {
   min-height: 0;
   width: min(550px, calc(100% - 32px));
