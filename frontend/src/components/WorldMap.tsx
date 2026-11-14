@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import { useTheme } from '../context/ThemeProvider'
 import type { AppliedFilters } from '../types/app'
 import { EmptyState } from './EmptyState'
 import './WorldMap.css'
@@ -10,8 +9,6 @@ type WorldMapProps = {
 
 export function WorldMap({ filters }: WorldMapProps) {
   const mapElement = useRef<HTMLDivElement>(null)
-  const { theme } = useTheme()
-
   useEffect(() => {
     if (!mapElement.current || !window.L) {
       return
@@ -19,12 +16,10 @@ export function WorldMap({ filters }: WorldMapProps) {
 
     const map = window.L.map(mapElement.current, { zoomControl: false })
       .setView([4, 0], 2)
-    const tileStyle = theme === 'dark' ? 'dark_all' : 'light_all'
-
     window.L.tileLayer(
-      `https://{s}.basemaps.cartocdn.com/${tileStyle}/{z}/{x}/{y}{r}.png`,
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
       },
     ).addTo(map)
@@ -34,7 +29,7 @@ export function WorldMap({ filters }: WorldMapProps) {
     requestAnimationFrame(() => map.invalidateSize())
 
     return () => map.remove()
-  }, [theme])
+  }, [])
 
   return (
     <section className="world-map" aria-labelledby="world-map-title">
@@ -53,7 +48,7 @@ export function WorldMap({ filters }: WorldMapProps) {
       </div>
 
       <footer className="world-map__footer">
-        <span>Mapa base © OpenStreetMap · CARTO</span>
+        <span>Mapa base © OpenStreetMap contributors</span>
         <span>
           {filters.startDate && filters.endDate
             ? `${filters.startDate} — ${filters.endDate}`
