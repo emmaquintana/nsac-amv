@@ -25,3 +25,6 @@ dist-ssr
 
 # Virtual sandbox environment directory
 .venv/
+__pycache__/
+*.py[cod]
+backend/.cache/
