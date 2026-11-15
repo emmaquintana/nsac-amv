@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { FilterPanel } from './components/FilterPanel'
 import { Sidebar } from './components/Sidebar'
 import { ThemeToggle } from './components/ThemeToggle'
+import { LanguageToggle } from './components/LanguageToggle'
+import { useLanguage } from './context/LanguageContext'
 import { TimeSeries } from './components/TimeSeries'
 import { WorldMap } from './components/WorldMap'
 import type { AppliedFilters, View } from './types/app'
@@ -9,6 +11,7 @@ import { filtersForPeriod } from './filters'
 import './App.css'
 
 export default function App() {
+  const { t } = useLanguage()
   const [view, setView] = useState<View>('map')
   const [seriesVisited, setSeriesVisited] = useState(false)
   const [mapFilters, setMapFilters] = useState<AppliedFilters>(() => filtersForPeriod())
@@ -26,22 +29,23 @@ export default function App() {
       <main className="app-main">
         <header className="app-header">
           <div className="app-header__title">
-            <span className="app-header__overline">CENTRO DE ANÁLISIS SATELITAL</span>
-            <h1>NSAC - Armonizacion de MODIS y VIIRS</h1>
+            <span className="app-header__overline">{t('center')}</span>
+            <h1>{t('appTitle')}</h1>
           </div>
-          <ThemeToggle />
+          <div className="app-header__actions">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </header>
 
         <div className="app-content">
           <div className="app-content__intro">
             <div>
               <span className="app-content__breadcrumb">
-                ESCRITORIO <b>/</b> {view === 'map' ? 'PLANISFERIO' : 'SERIE TEMPORAL'}
+                {t('dashboard')} <b>/</b> {t(view === 'map' ? 'map' : 'series').toLocaleUpperCase()}
               </span>
               <p>
-                {view === 'map'
-                  ? 'Explora la actividad térmica global y sus focos detectados.'
-                  : 'Compara la evolución de incendios entre regiones.'}
+                {t(view === 'map' ? 'mapIntro' : 'seriesIntro')}
               </p>
             </div>
           </div>
@@ -57,8 +61,8 @@ export default function App() {
           </div>}
 
           <footer className="app-footer">
-            <span>NSAC · Armonización de datos satelitales</span>
-            <span>MODIS <i /> VIIRS <i /> CAPA COMÚN DE DATOS</span>
+            <span>{t('footer')}</span>
+            <span>MODIS <i /> VIIRS <i /> {t('commonData')}</span>
           </footer>
         </div>
       </main>

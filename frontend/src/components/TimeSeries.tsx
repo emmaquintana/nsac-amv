@@ -3,6 +3,7 @@ import type { AppliedFilters } from '../types/app'
 import { regions } from '../types/app'
 import { useTimeSeries } from '../hooks/useTimeSeries'
 import { buildTimeSeries } from './timeSeriesData'
+import { useLanguage } from '../context/LanguageContext'
 import './TimeSeries.css'
 
 type TimeSeriesProps = {
@@ -11,10 +12,9 @@ type TimeSeriesProps = {
 
 const PLOT = { left: 64, top: 24, width: 868, height: 250 }
 const DASHES = ['', '8 3', '3 3', '10 3 2 3', '6 3 2 3', '2 4']
-const formatCount = (value: number) => value.toLocaleString('es-AR')
-const formatDay = (day: string, includeYear: boolean) => `${day.slice(8, 10)}/${day.slice(5, 7)}${includeYear ? `/${day.slice(2, 4)}` : ''}`
 
 export function TimeSeries({ filters }: TimeSeriesProps) {
+  const { t, regionName, formatNumber: formatCount, formatDate: formatDay } = useLanguage()
   const { summary, error, loading, retry, loadingMessage } = useTimeSeries(filters)
 
   const { days, series, maximum, represented, missingDays } = buildTimeSeries(summary, filters)
@@ -30,12 +30,12 @@ export function TimeSeries({ filters }: TimeSeriesProps) {
     <section className="time-series" aria-labelledby="time-series-title">
       <header className="time-series__header">
         <div>
-          <span className="time-series__eyebrow">EVOLUCIÓN TEMPORAL</span>
-          <h2 id="time-series-title">Actividad de focos térmicos</h2>
-          <p>Incendios detectados por región a lo largo del tiempo</p>
+          <span className="time-series__eyebrow">{t('temporalEvolution')}</span>
+          <h2 id="time-series-title">{t('hotspotActivity')}</h2>
+          <p>{t('seriesDescription')}</p>
           {filters.startDate && filters.endDate && (
             <span className="time-series__date-range">
-              {filters.startDate} — {filters.endDate}
+              {formatDay(filters.startDate)} — {formatDay(filters.endDate)}
             </span>
           )}
         </div>
@@ -43,21 +43,21 @@ export function TimeSeries({ filters }: TimeSeriesProps) {
 
       {error && <p role="alert">{error}</p>}
       {represented === 0 ? loading ? <p role="status">{loadingMessage}</p>
-        : !error && <EmptyState detail="No hay observaciones disponibles para los filtros seleccionados." />
+        : !error && <EmptyState detail={t('seriesEmpty')} />
           : <div className="time-series__chart">
-            <ul className="time-series__legend" aria-label="Regiones representadas">
+            <ul className="time-series__legend" aria-label={t('representedRegions')}>
               {series.map(({ region }) => <li key={region}>
                 <svg width="28" height="12" aria-hidden="true">
                   <line x1="0" x2="28" y1="6" y2="6" stroke={`var(--series-${regions.indexOf(region)})`}
                     strokeWidth="3" strokeDasharray={DASHES[regions.indexOf(region)]} />
                 </svg>
-                {region}
+                {regionName(region)}
               </li>)}
             </ul>
             <div className="time-series__plot">
-              <svg className="time-series__svg" viewBox="0 0 960 320" role="img" aria-label="Observaciones diarias por región, en fecha UTC">
-                <desc>Cada línea representa una región seleccionada. Los valores cuentan todas las observaciones disponibles de MODIS y VIIRS por día UTC. Los días sin registros en los archivos se muestran como huecos.</desc>
-                <text className="time-series__axis-title" x={PLOT.left} y="12">Observaciones</text>
+              <svg className="time-series__svg" viewBox="0 0 960 320" role="img" aria-label={t('chartLabel')}>
+                <desc>{t('chartDescription')}</desc>
+                <text className="time-series__axis-title" x={PLOT.left} y="12">{t('observations')}</text>
                 {Array.from({ length: 5 }, (_, index) => index * tickStep).map((count) => <g key={count}>
                   <line className="time-series__grid" x1={PLOT.left} x2={PLOT.left + PLOT.width} y1={y(count)} y2={y(count)} />
                   <text className="time-series__tick" x={PLOT.left - 10} y={y(count)} textAnchor="end" dominantBaseline="middle">{formatCount(count)}</text>
@@ -72,17 +72,17 @@ export function TimeSeries({ filters }: TimeSeriesProps) {
                     d={counts.map((count, index) => count === null ? '' : `${index === 0 || counts[index - 1] === null ? 'M' : 'L'}${x(index)},${y(count)}`).join(' ')} />
                   {counts.map((count, index) => count !== null && <circle key={days[index]} cx={x(index)} cy={y(count)} r="3.5" fill="var(--surface)" strokeWidth="2"
                     className={days.length <= 60 || ((index === 0 || counts[index - 1] === null) && (index === days.length - 1 || counts[index + 1] === null)) ? 'time-series__point time-series__point--visible' : 'time-series__point'}>
-                    <title>{region} · {days[index]} (UTC): {formatCount(count)} observaciones</title>
+                    <title>{regionName(region)} · {formatDay(days[index])} (UTC): {t('observationCount', { count })}</title>
                   </circle>)}
                 </g>)}
               </svg>
             </div>
-            <p>{formatCount(represented)} observaciones · totales completos por región y día UTC</p>
-            {summary?.first_day && summary.last_day && <p>Registros disponibles: {summary.first_day} — {summary.last_day} · {summary.observed_days} días con registros.</p>}
-            {missingDays > 0 && <p>{missingDays} días sin registros en los archivos: se muestran como huecos, sin asignarles cero.</p>}
-            {!!summary?.unassigned && <p>{formatCount(summary.unassigned)} observaciones sin región identificada no se representan.</p>}
+            <p>{t('seriesTotal', { count: represented })}</p>
+            {summary?.first_day && summary.last_day && <p>{t('availableRecords', { first: formatDay(summary.first_day), last: formatDay(summary.last_day), days: summary.observed_days })}</p>}
+            {missingDays > 0 && <p>{t(missingDays === 1 ? 'missingDay' : 'missingDays', { days: missingDays })}</p>}
+            {!!summary?.unassigned && <p>{t('unassigned', { count: summary.unassigned })}</p>}
           </div>}
-      {error && <button type="button" onClick={retry}>Reintentar</button>}
+      {error && <button type="button" onClick={retry}>{t('retry')}</button>}
     </section>
   )
 }

@@ -1,4 +1,5 @@
 import type { View } from '../types/app'
+import { useLanguage } from '../context/LanguageContext'
 import './Sidebar.css'
 
 type SidebarProps = {
@@ -7,6 +8,7 @@ type SidebarProps = {
 }
 
 export function Sidebar({ view, onViewChange }: SidebarProps) {
+  const { t } = useLanguage()
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
@@ -21,9 +23,9 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
         </div>
       </div>
 
-      <span className="sidebar__section-label">ANÁLISIS</span>
+      <span className="sidebar__section-label">{t('analysis')}</span>
 
-      <nav className="sidebar__nav" aria-label="Vistas">
+      <nav className="sidebar__nav" aria-label={t('views')}>
         <button
           className={`sidebar__link ${view === 'map' ? 'sidebar__link--active' : ''}`}
           type="button"
@@ -31,7 +33,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
           aria-current={view === 'map' ? 'page' : undefined}
         >
           <span className="sidebar__link-icon" aria-hidden="true">◉</span>
-          <span>Planisferio</span>
+          <span>{t('map')}</span>
         </button>
 
         <button
@@ -41,13 +43,13 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
           aria-current={view === 'series' ? 'page' : undefined}
         >
           <span className="sidebar__link-icon" aria-hidden="true">⌁</span>
-          <span>Serie temporal</span>
+          <span>{t('series')}</span>
         </button>
       </nav>
 
       <div className="sidebar__footer">
         <span className="sidebar__status-dot" />
-        <span>Armonización MODIS · VIIRS</span>
+        <span>{t('harmonization')}</span>
       </div>
     </aside>
   )

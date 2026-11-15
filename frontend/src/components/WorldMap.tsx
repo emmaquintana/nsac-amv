@@ -4,6 +4,7 @@ import { regions } from '../types/app'
 import { useObservations } from '../hooks/useObservations'
 import { useTimeSeries } from '../hooks/useTimeSeries'
 import { EmptyState } from './EmptyState'
+import { useLanguage } from '../context/LanguageContext'
 import './WorldMap.css'
 
 type WorldMapProps = {
@@ -12,6 +13,7 @@ type WorldMapProps = {
 }
 
 export function WorldMap({ filters, active }: WorldMapProps) {
+  const { t, locale, formatNumber, formatDate } = useLanguage()
   const mapElement = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const markersRef = useRef<LeafletLayerGroup | null>(null)
@@ -35,7 +37,7 @@ export function WorldMap({ filters, active }: WorldMapProps) {
     window.L.tileLayer(
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       },
     ).addTo(map)
@@ -56,6 +58,14 @@ export function WorldMap({ filters, active }: WorldMapProps) {
 
     return () => { map.off('moveend', updateViewport); map.remove(); mapRef.current = null; markersRef.current = null }
   }, [])
+
+  useEffect(() => {
+    for (const [selector, label] of [['.leaflet-control-zoom-in', t('zoomIn')], ['.leaflet-control-zoom-out', t('zoomOut')]]) {
+      const button = mapElement.current?.querySelector(selector)
+      button?.setAttribute('title', label)
+      button?.setAttribute('aria-label', label)
+    }
+  }, [t])
 
   useEffect(() => {
     if (!active) return
@@ -81,44 +91,44 @@ export function WorldMap({ filters, active }: WorldMapProps) {
         fillOpacity: 0.72,
         weight: 1,
       })
-      const first = new Date(item.first_detection).toLocaleString('es-AR')
-      const last = new Date(item.last_detection).toLocaleString('es-AR')
-      marker.bindPopup(`<strong>${item.count.toLocaleString('es-AR')} ${grouped ? 'observaciones agrupadas' : 'observación'}</strong><br>MODIS: ${item.modis.toLocaleString('es-AR')} · VIIRS: ${item.viirs.toLocaleString('es-AR')}<br>${first}${first !== last ? `<br>Hasta ${last}` : ''}<br>FRP${grouped ? ' máxima' : ''}: ${item.max_frp ?? 's/d'} MW${grouped ? '<br>Acerca el mapa para ver más detalle.' : ''}`)
+      const first = new Date(item.first_detection).toLocaleString(locale)
+      const last = new Date(item.last_detection).toLocaleString(locale)
+      marker.bindPopup(`<strong>${formatNumber(item.count)} ${t(grouped ? 'groupedObservations' : 'observation')}</strong><br>MODIS: ${formatNumber(item.modis)} · VIIRS: ${formatNumber(item.viirs)}<br>${first}${first !== last ? `<br>${t('until')} ${last}` : ''}<br>${grouped ? t('maxFrp') : 'FRP'}: ${item.max_frp === null ? t('noValue') : formatNumber(item.max_frp)} MW${grouped ? `<br>${t('detailHint')}` : ''}`)
       marker.addTo(markers)
     })
-  }, [points, viewport])
+  }, [points, viewport, locale, t, formatNumber])
 
   return (
     <section className="world-map" aria-labelledby="world-map-title">
       <header className="world-map__header">
         <div>
-          <span className="world-map__eyebrow">DISTRIBUCIÓN GLOBAL</span>
-          <h2 id="world-map-title">Focos térmicos</h2>
+          <span className="world-map__eyebrow">{t('globalDistribution')}</span>
+          <h2 id="world-map-title">{t('hotspots')}</h2>
         </div>
       </header>
 
       <div className="world-map__canvas">
         <div className="world-map__leaflet" ref={mapElement} />
-        {error ? <div className="world-map__message" role="alert">{error} <button type="button" onClick={retry}>Reintentar</button></div>
+        {error ? <div className="world-map__message" role="alert">{error} <button type="button" onClick={retry}>{t('retry')}</button></div>
           : points.length === 0 && <div className="world-map__empty-overlay">
             {loading ? <p role="status">{loadingMessage}</p>
-              : <EmptyState detail="No hay observaciones en esta área con los filtros seleccionados. Desplaza el mapa o aleja el zoom para explorar otras zonas." />}
+              : <EmptyState detail={t('mapEmpty')} />}
           </div>}
       </div>
 
       <footer className="world-map__footer">
         <div>
-          <span>{total !== null ? `${total.toLocaleString('es-AR')} observaciones en el período`
-            : totalLoading ? 'Calculando total del período…' : 'Total del período no disponible'}</span>
-          <span role="status">{loading ? loadingMessage : error ? 'No se pudo actualizar el área visible'
-            : `${visibleTotal.toLocaleString('es-AR')} observaciones en el área visible · ${points.length.toLocaleString('es-AR')} puntos en el mapa`}</span>
-          {totalError && <span role="alert">{totalError} <button type="button" onClick={retryTotal}>Reintentar total</button></span>}
+          <span>{total !== null ? t('periodTotal', { count: total })
+            : t(totalLoading ? 'calculatingTotal' : 'unavailableTotal')}</span>
+          <span role="status">{loading ? loadingMessage : error ? t('visibleError')
+            : t('visibleTotal', { count: visibleTotal, points: points.length })}</span>
+          {totalError && <span role="alert">{totalError} <button type="button" onClick={retryTotal}>{t('retryTotal')}</button></span>}
         </div>
-        <span>Acerca el mapa para desplegar los focos agrupados.</span>
+        <span>{t('zoomHint')}</span>
         <span>
           {filters.startDate && filters.endDate
-            ? `${filters.startDate} — ${filters.endDate}`
-            : 'Todo el período disponible'}
+            ? `${formatDate(filters.startDate)} — ${formatDate(filters.endDate)}`
+            : t('allDates')}
         </span>
       </footer>
     </section>

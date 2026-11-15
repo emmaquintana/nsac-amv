@@ -1,7 +1,9 @@
 import { useId, useState } from 'react'
 import type { AppliedFilters, Period, View } from '../types/app'
 import { regions } from '../types/app'
-import { DEFAULT_PERIOD, filtersForPeriod } from '../filters'
+import { DEFAULT_PERIOD, filtersForPeriod, formatDate } from '../filters'
+import { useLanguage } from '../context/LanguageContext'
+import type { TranslationKey } from '../i18n'
 import './FilterPanel.css'
 
 type FilterPanelProps = {
@@ -10,12 +12,14 @@ type FilterPanelProps = {
 }
 
 export function FilterPanel({ view, onApply }: FilterPanelProps) {
+  const { t, regionName } = useLanguage()
   const id = useId()
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD)
   const [selectedRegions, setSelectedRegions] = useState<string[]>(regions)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState<TranslationKey | ''>('')
+  const [today, setToday] = useState(() => formatDate(new Date()))
 
   function toggleRegion(region: string) {
     setSelectedRegions((currentRegions) => currentRegions.includes(region)
@@ -24,8 +28,13 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
   }
 
   function applyFilters() {
+    if (period === 'custom' && endDate > formatDate(new Date())) {
+      setError('futureDate')
+      return
+    }
+
     if (period === 'custom' && (!startDate || !endDate || startDate > endDate)) {
-      setError('La fecha de inicio debe ser anterior o igual a la fecha de fin.')
+      setError('invalidDates')
       return
     }
 
@@ -41,16 +50,16 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
     <section className="filter-panel" aria-labelledby={`${id}-title`}>
       <header className="filter-panel__header">
         <div>
-          <span className="filter-panel__eyebrow">CONFIGURACIÓN</span>
-          <h2 id={`${id}-title`}>Filtros</h2>
+          <span className="filter-panel__eyebrow">{t('configuration')}</span>
+          <h2 id={`${id}-title`}>{t('filters')}</h2>
         </div>
         <span className="filter-panel__header-icon" aria-hidden="true">⌘</span>
       </header>
 
       {view === 'series' ? (
         <fieldset className="filter-panel__regions">
-          <legend>Regiones</legend>
-          <span className="filter-panel__hint">Selecciona una o más regiones</span>
+          <legend>{t('regions')}</legend>
+          <span className="filter-panel__hint">{t('selectRegions')}</span>
           {regions.map((region) => (
             <label className="filter-panel__checkbox" key={region}>
               <input
@@ -58,73 +67,75 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
                 checked={selectedRegions.includes(region)}
                 onChange={() => toggleRegion(region)}
               />
-              <span>{region}</span>
+              <span>{regionName(region)}</span>
             </label>
           ))}
         </fieldset>
       ) : (
         <div className="filter-panel__field">
-          <label htmlFor={`${id}-region`}>Región</label>
+          <label htmlFor={`${id}-region`}>{t('region')}</label>
           <select
             id={`${id}-region`}
             value={selectedRegions.length === regions.length ? '' : selectedRegions[0] ?? ''}
             onChange={(event) => setSelectedRegions(event.target.value ? [event.target.value] : regions)}
           >
-            <option value="">Todas las regiones</option>
-            {regions.map((region) => <option key={region} value={region}>{region}</option>)}
+            <option value="">{t('allRegions')}</option>
+            {regions.map((region) => <option key={region} value={region}>{regionName(region)}</option>)}
           </select>
         </div>
       )}
 
       <div className="filter-panel__field">
-        <label htmlFor={`${id}-period`}>Periodo</label>
+        <label htmlFor={`${id}-period`}>{t('period')}</label>
         <select
           id={`${id}-period`}
           value={period}
           onChange={(event) => setPeriod(event.target.value as Period)}
         >
-          <option value="7">Últimos 7 días</option>
-          <option value="30">Últimos 30 días</option>
-          <option value="90">Últimos 90 días</option>
-          <option value="custom">Personalizado</option>
+          <option value="7">{t('last7')}</option>
+          <option value="30">{t('last30')}</option>
+          <option value="90">{t('last90')}</option>
+          <option value="custom">{t('custom')}</option>
         </select>
       </div>
 
       {period === 'custom' && (
         <div className="filter-panel__date-range">
           <div className="filter-panel__field">
-            <label htmlFor={`${id}-start`}>Fecha de inicio</label>
+            <label htmlFor={`${id}-start`}>{t('startDate')}</label>
             <input
               id={`${id}-start`}
               type="date"
               value={startDate}
-              max={endDate || undefined}
+              max={endDate && endDate < today ? endDate : today}
               onChange={(event) => setStartDate(event.target.value)}
             />
           </div>
           <div className="filter-panel__field">
-            <label htmlFor={`${id}-end`}>Fecha de fin</label>
+            <label htmlFor={`${id}-end`}>{t('endDate')}</label>
             <input
               id={`${id}-end`}
               type="date"
               value={endDate}
               min={startDate || undefined}
+              max={today}
+              onFocus={() => setToday(formatDate(new Date()))}
               onChange={(event) => setEndDate(event.target.value)}
             />
           </div>
         </div>
       )}
 
-      {error && <p className="filter-panel__error" role="alert">{error}</p>}
+      {error && <p className="filter-panel__error" role="alert">{t(error)}</p>}
 
       <button className="filter-panel__apply" type="button" onClick={applyFilters}>
-        Aplicar filtros <span aria-hidden="true">→</span>
+        {t('applyFilters')} <span aria-hidden="true">→</span>
       </button>
 
       <div className="filter-panel__source">
         <span aria-hidden="true">◈</span>
         <div>
-          <strong>Fuentes armonizadas</strong>
+          <strong>{t('sources')}</strong>
           <span>MODIS · VIIRS</span>
         </div>
       </div>

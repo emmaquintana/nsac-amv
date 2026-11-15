@@ -29,6 +29,14 @@ La API documenta sus rutas en `http://127.0.0.1:8000/docs`. El frontend
 consulta observaciones y continentes directamente; el mapa y la serie temporal
 se actualizan al aplicar filtros.
 
+## Idioma del frontend
+
+La interfaz está disponible en inglés y español. Al iniciar utiliza el primer
+idioma compatible de las preferencias del sistema/navegador; si ninguno es
+compatible, utiliza inglés. El botón **EN / ES** del encabezado cambia el idioma
+sin perder los filtros y guarda la elección para las próximas visitas en ese
+navegador. Los textos, las fechas y los números se adaptan al idioma seleccionado.
+
 ## Descarga automática de datos FIRMS
 
 Los CSV de `backend/app/data/` se descargan directamente de NASA FIRMS y quedan
