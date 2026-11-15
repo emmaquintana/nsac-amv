@@ -1,5 +1,6 @@
 """Controladores HTTP de la API."""
 
+from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
 
@@ -7,15 +8,28 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from app.catalog import catalog_status
+from app.downloads import DATA_WARNING, logger
+from app.prepare import prepare_data
 from app.schemas import MapObservations, Observation, TimeSeriesSummary
 from app.map_points import get_map_observations, map_status
 from app.services import get_continents, get_harmonized_pairs, get_observations
 from app.time_series import get_time_series, time_series_status
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    prepare_data()
+    try:
+        yield
+    finally:
+        logger.warning("Fin del servidor. %s", DATA_WARNING)
+
+
 app = FastAPI(
     title="NSAC AMV API",
     description="API para consultar detecciones de incendios MODIS y VIIRS armonizadas.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 
