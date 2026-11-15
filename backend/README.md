@@ -7,6 +7,33 @@ Backend Python con FastAPI. Desde `backend/`, instalar dependencias con
 uvicorn api.api:app --reload
 ```
 
+Antes de aceptar peticiones, la API comprueba los cuatro pedidos FIRMS de
+`app/downloads.py`, descarga y descomprime los que falten en `app/data/`, y
+prepara el catálogo Parquet, el índice del mapa y los totales diarios. El comando
+raíz `npm run dev` ejecuta primero `python -m app.prepare` y sólo inicia la API y
+Vite cuando todas esas etapas terminan correctamente. Los errores de descarga o
+preparación impiden iniciar el frontend; vuelve a ejecutar el comando después de
+corregir el problema. El primer arranque puede tardar varios minutos; el progreso
+por etapa, archivo y porcentaje se muestra en consola. Los siguientes arranques
+reutilizan las cachés que sigan vigentes.
+
+**Advertencia FIRMS:** los archivos fueron generados el **2026-11-14**; los enlaces
+expiran a los **45 días, el 2026-12-29**. La **fecha máxima histórica de los
+registros es 2025-11-16**. Se advierte en los logs al inicio y al final de la
+preparación, incluso ante fallos, y al apagar la API. Se eligieron ZIP porque el
+límite de días por consulta de la API habría requerido demasiadas solicitudes.
+Los enlaces están en el [README principal](../README.md#descarga-automática-de-datos-firms).
+Si vencen, los datos locales completos siguen siendo utilizables; para reponer
+datos faltantes hay que solicitar nuevos pedidos CSV y actualizar
+`app/downloads.py`, o restaurar los archivos originales localmente.
+
+Los CSV descargados se ignoran en Git y no requieren Git LFS. La validación
+comprueba los CSV `archive` y `nrt` de cada uno de estos pedidos y su `Readme.txt`;
+acepta encabezados sin registros y reemplaza punteros LFS. La descarga se hace
+por bloques y el ZIP se valida y extrae temporalmente antes de instalar los
+archivos. Se necesitan unos 4,7 GB para los CSV y espacio adicional para el
+paquete en curso. Los conjuntos completos se reutilizan sin red.
+
 ## Datos y esquema
 
 La API y el script de armonización descubren CSV recursivamente en `app/data/`.
@@ -32,7 +59,9 @@ Los CSV también se reconocen por sus columnas `instrument`/`satellite`, de modo
 que los nombres antiguos y los archivos renombrados siguen funcionando. Los
 archivos vacíos con encabezado de FIRMS son válidos y aportan cero detecciones.
 Se omiten Readme, archivos auxiliares y resultados generados por el análisis.
-Descomprime los ZIP y solicita formato **CSV**; no se leen ZIP ni shapefiles.
+Para datos adicionales, descomprime los ZIP y solicita formato **CSV**; las
+consultas no leen ZIP ni shapefiles. Los cuatro ZIP configurados se descomprimen
+automáticamente durante el arranque.
 LANDSAT queda fuera de la armonización MODIS–VIIRS.
 
 Los archivos `archive` y `nrt` de cada producto se combinan. Se conservan
@@ -55,7 +84,12 @@ FIRMS_PATHS=/ruta/modis.csv:/ruta/descargas_viirs uvicorn api.api:app --reload
 `VIIRS_J1_CSV`, `VIIRS_J2_CSV` y `VIIRS_SNPP_CSV`, con archivos o carpetas. Si se
 configura alguna de estas variables, se utilizan solamente las rutas indicadas;
 si no, se usa `FIRMS_DATA_DIR` o `app/data/`. Los archivos se descubren de nuevo
-en cada consulta. Una ruta inexistente o la ausencia de CSV reconocibles genera
+en cada consulta. `FIRMS_DATA_DIR` también cambia el destino de las cuatro
+descargas automáticas. `FIRMS_PATHS` y las variables de compatibilidad seleccionan
+entradas explícitas: se validan al arrancar y no descargan los pedidos históricos.
+Con estas entradas personalizadas, una ruta inexistente o la ausencia de CSV
+reconocibles impide arrancar la API. Si se quitan datos después del arranque,
+las consultas responden
 HTTP 503 con una explicación, en vez de una lista vacía silenciosa.
 
 Las consultas se ordenan cronológicamente y usan paginación (`limit`, máximo
@@ -65,18 +99,20 @@ vez y usa DuckDB para consultar fechas y páginas. La caché se guarda en
 cada archivo cuando cambia su tamaño o fecha de modificación. Agregar o quitar
 CSV también actualiza las entradas consultadas. Los CSV originales no se alteran.
 
-La primera visita inicia la preparación en segundo plano. El frontend consulta
-`GET /api/v1/data/status` cada dos segundos y muestra archivos completados,
-porcentaje y archivo actual. El endpoint de observaciones responde HTTP 202
-mientras se prepara la caché, y una lista cuando está lista. Los errores de
-preparación se muestran en pantalla. Las peticiones tienen un tiempo máximo de
-30 segundos y la espera de preparación de diez minutos, con opción de reintentar.
-La preparación del servidor continúa aunque se cierre la página.
+La preparación inicial se completa durante el arranque, antes de abrir el
+frontend o aceptar peticiones en la API. La primera visita ya encuentra el
+catálogo, el mapa y los totales diarios preparados. Si se agregan o modifican
+CSV con el servidor en marcha, se mantiene la preparación en segundo plano:
+los endpoints devuelven HTTP 202 con archivos completados, porcentaje y archivo
+actual hasta que la caché esté lista. El frontend reintenta cada dos segundos y
+muestra los errores de preparación. Las peticiones tienen un tiempo máximo de
+30 segundos y la espera de preparación en la web de diez minutos; esos límites
+no se aplican a la preparación previa al inicio de Vite.
 
-Se puede preparar la caché antes de abrir la interfaz, desde `backend/`:
+Para descargar y preparar todas las cachés sin iniciar servidores, desde `backend/`:
 
 ```bash
-python -m app.catalog
+python -m app.prepare
 ```
 
 El planisferio consulta `GET /api/v1/map` con los límites del área visible
@@ -91,9 +127,9 @@ Cada grupo informa el conteo completo, las cantidades MODIS/VIIRS, el intervalo
 de detección y la FRP máxima. Los conteos del área visible son independientes del
 total del período. Se admiten fechas inclusivas y parámetros `continent`
 repetidos; sin filtro continental se incluyen puntos oceánicos y sin región.
-El índice espacial se prepara por bloques en segundo plano y se conserva en
+El índice espacial se prepara por bloques durante el arranque y se conserva en
 `backend/.cache/firms/map/`, invalidándose al cambiar los CSV o la geografía.
-Durante esa primera preparación, el endpoint devuelve HTTP 202 con progreso.
+Si se invalida con la API en marcha, el endpoint devuelve HTTP 202 con progreso.
 Las consultas anteriores se cancelan al cambiar la vista o los filtros.
 
 La serie temporal consulta
@@ -101,12 +137,12 @@ La serie temporal consulta
 día UTC y continente, sin paginación ni muestreo. Admite `start_date`, `end_date`
 y parámetros `continent` repetidos para seleccionar varias regiones.
 
-La primera consulta de la serie prepara resúmenes diarios persistentes en
+Durante el arranque se preparan resúmenes diarios persistentes en
 `backend/.cache/firms/daily/`. El cálculo clasifica los puntos por bloques con
-los mismos polígonos del mapa y devuelve HTTP 202 con progreso mientras trabaja;
-la interfaz espera a tener los totales completos. Los resúmenes se reutilizan y
-se invalidan cuando cambia el CSV o el archivo de geografía. También se pueden
-preparar con `python -m app.time_series`.
+los mismos polígonos del mapa. Los resúmenes se reutilizan y se invalidan cuando
+cambia el CSV o el archivo de geografía. Si hay que recalcularlos con la API en
+marcha, se devuelve HTTP 202 con progreso y la interfaz espera a tener los
+totales completos. También se pueden preparar con `python -m app.time_series`.
 
 Los días sin registros en ningún archivo se muestran como huecos. Un cero por
 región se muestra solamente en días con registros en el conjunto consultado.
