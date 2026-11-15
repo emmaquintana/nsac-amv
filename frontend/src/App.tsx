@@ -5,12 +5,13 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { TimeSeries } from './components/TimeSeries'
 import { WorldMap } from './components/WorldMap'
 import type { AppliedFilters, View } from './types/app'
+import { regions } from './types/app'
 import './App.css'
 
 export default function App() {
   const [view, setView] = useState<View>('map')
   const [filters, setFilters] = useState<AppliedFilters>({
-    regions: [],
+    regions,
     startDate: '',
     endDate: '',
   })

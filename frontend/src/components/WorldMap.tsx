@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { AppliedFilters } from '../types/app'
-import { getObservations, type Observation } from '../services/api'
+import { useObservations } from '../hooks/useObservations'
 import { EmptyState } from './EmptyState'
 import './WorldMap.css'
 
@@ -12,23 +12,7 @@ export function WorldMap({ filters }: WorldMapProps) {
   const mapElement = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const markersRef = useRef<LeafletLayerGroup | null>(null)
-  const [observations, setObservations] = useState<Observation[]>([])
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let active = true
-    getObservations(filters)
-      .then((rows) => {
-        const filtered = filters.regions.length === 6
-          ? rows
-          : rows.filter((item) => item.continent && filters.regions.includes(item.continent))
-        if (active) { setObservations(filtered); setError('') }
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : 'No se pudieron cargar los datos.')
-      })
-    return () => { active = false }
-  }, [filters])
+  const { observations, error } = useObservations(filters)
 
   useEffect(() => {
     if (!mapElement.current || !window.L) {

@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
 import { EmptyState } from './EmptyState'
 import type { AppliedFilters } from '../types/app'
-import { getObservations, type Observation } from '../services/api'
+import { useObservations } from '../hooks/useObservations'
 import './TimeSeries.css'
 
 type TimeSeriesProps = {
@@ -9,21 +8,7 @@ type TimeSeriesProps = {
 }
 
 export function TimeSeries({ filters }: TimeSeriesProps) {
-  const [observations, setObservations] = useState<Observation[]>([])
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let active = true
-    getObservations(filters)
-      .then((rows) => {
-        const filtered = filters.regions.length === 6
-          ? rows
-          : rows.filter((item) => item.continent && filters.regions.includes(item.continent))
-        if (active) { setObservations(filtered); setError('') }
-      })
-      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'No se pudieron cargar los datos.') })
-    return () => { active = false }
-  }, [filters])
+  const { observations, error } = useObservations(filters)
 
   const counts = new Map<string, number>()
   observations.forEach((item) => {

@@ -81,7 +81,7 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
           <select
             id="region-filter"
             value={selectedRegions.length === regions.length ? '' : selectedRegions[0] ?? ''}
-            onChange={(event) => setSelectedRegions(event.target.value ? [event.target.value] : [])}
+            onChange={(event) => setSelectedRegions(event.target.value ? [event.target.value] : regions)}
           >
             <option value="">Todas las regiones</option>
             {regions.map((region) => <option key={region} value={region}>{region}</option>)}
