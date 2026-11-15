@@ -1,4 +1,215 @@
+[English](#english) | [Español](#español)
+
 # Backend
+
+## English
+
+Python backend with FastAPI. From `backend/`, install dependencies with
+`pip install -r requirements.txt` and run the API with:
+
+```bash
+uvicorn api.api:app --reload
+```
+
+Before accepting requests, the API checks the four FIRMS requests in
+`app/downloads.py`, downloads and extracts any missing ones into `app/data/`,
+and prepares the Parquet catalog, map index, and daily totals. The root
+`npm run dev` command first runs `python -m app.prepare` and only starts the API
+and Vite once all those stages finish successfully. Download or preparation
+errors prevent the frontend from starting; run the command again after fixing
+the problem. The first startup can take several minutes; progress by stage,
+file, and percentage appears in the console. Later startups reuse caches that
+are still valid.
+
+**FIRMS warning:** the files were generated on **2026-11-14**; links expire after
+**45 days, on 2026-12-29**. The **latest historical record date is 2025-11-16**.
+Warnings are logged at the start and end of preparation, including failures,
+and when the API shuts down. ZIP files were chosen because the API's limit on
+days per query would have required too many requests. The links are in the
+[main README](../README.md#automatic-firms-data-downloads).
+After expiration, complete local data remains usable; to replace missing data,
+request new CSV packages and update `app/downloads.py`, or restore the original
+files locally.
+
+Downloaded CSV files are ignored by Git and do not require Git LFS. Validation
+checks the `archive` and `nrt` CSV files and `Readme.txt` for each request; it
+accepts headers without records and replaces LFS pointers. Downloads are
+streamed in chunks, and each ZIP is validated and temporarily extracted before
+its files are installed. About 4.7 GB is needed for the CSV files, plus extra
+space for the package being processed. Complete datasets are reused without
+network access.
+
+### Data and schema
+
+The API and harmonization script discover CSV files recursively in `app/data/`.
+You can copy individual files or extracted download folders from
+[NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/download/Readme.txt) there,
+without changing the code or renaming files:
+
+```text
+app/data/
+  DL_FIRE_M-C61_848778/
+    fire_archive_M-C61_848778.csv
+    fire_nrt_M-C61_848778.csv
+    Readme.txt
+  DL_FIRE_J1V-C2_848779/
+    fire_archive_J1V-C2_848779.csv
+    fire_nrt_J1V-C2_848779.csv
+  DL_FIRE_J2V-C2_848780/...
+  DL_FIRE_SV-C2_848781/...
+```
+
+MODIS C6.1 (Terra/Aqua) and VIIRS C2 (NOAA-20, NOAA-21, and S-NPP) are supported.
+CSV files are also recognized by their `instrument`/`satellite` columns, so old
+names and renamed files continue to work. Empty files with a FIRMS header are
+valid and contribute zero detections. Readme files, auxiliary files, and
+analysis output are skipped. For additional data, extract ZIP files and request
+**CSV** format; queries do not read ZIP files or shapefiles. The four configured
+ZIP files are extracted automatically during startup.
+LANDSAT is outside the scope of MODIS–VIIRS harmonization.
+
+Each product's `archive` and `nrt` files are combined. The fields `source`,
+`satellite`, `product`, `version`, `data_kind`, and `file_name` are preserved,
+along with WGS84 coordinates, UTC date/time, brightness, confidence, FRP,
+day/night, and continent. Identifiers combine the path and row number and are
+the same in the API and CLI. Each file is included only once even when input
+paths overlap. Separate downloads containing repeated observations are not
+deduplicated by coordinates; select non-overlapping inputs to avoid counting
+them twice.
+
+To choose another folder or combine files and folders:
+
+```bash
+FIRMS_DATA_DIR=/path/to/data uvicorn api.api:app --reload
+# On Linux/macOS, separate multiple inputs with ':' (on Windows, with ';').
+FIRMS_PATHS=/path/to/modis.csv:/path/to/viirs_downloads uvicorn api.api:app --reload
+```
+
+`FIRMS_PATHS` takes precedence. For compatibility, `MODIS_CSV`, `VIIRS_J1_CSV`,
+`VIIRS_J2_CSV`, and `VIIRS_SNPP_CSV` also accept files or folders. If any of these
+variables is configured, only the specified paths are used; otherwise,
+`FIRMS_DATA_DIR` or `app/data/` is used. Files are rediscovered on each query.
+`FIRMS_DATA_DIR` also changes the destination of the four automatic downloads.
+`FIRMS_PATHS` and the compatibility variables select explicit inputs: they are
+validated at startup and do not download the historical requests. With these
+custom inputs, a missing path or the absence of recognizable CSV files prevents
+the API from starting. If data is removed after startup, queries return HTTP 503
+with an explanation instead of silently returning an empty list.
+
+Queries are sorted chronologically and use pagination (`limit`, up to 5000,
+and `offset`). The API converts each CSV file to a local Parquet cache once and
+uses DuckDB to query dates and pages. The cache is stored in
+`backend/.cache/firms/` (configurable with `FIRMS_CACHE_DIR`) and regenerated for
+each file when its size or modification time changes. Adding or removing CSV
+files also updates the queried inputs. Original CSV files are not modified.
+
+Initial preparation finishes during startup, before opening the frontend or
+accepting API requests. The catalog, map, and daily totals are already prepared
+on the first visit. If CSV files are added or modified while the server is
+running, preparation continues in the background: endpoints return HTTP 202
+with completed files, percentage, and the current file until the cache is
+ready. The frontend retries every two seconds and displays preparation errors.
+Requests have a 30-second timeout, and the web interface waits up to ten minutes
+for preparation; these limits do not apply to preparation before Vite starts.
+
+To download and prepare all caches without starting servers, run from `backend/`:
+
+```bash
+python -m app.prepare
+```
+
+The world map queries `GET /api/v1/map` with the visible area's bounds (`west`,
+`south`, `east`, `north`) and `zoom` level. Each query considers **all**
+observations in the period and groups them into spatial cells: the global view
+shows a small number of groups, and zooming in subdivides the cells to reveal
+more hotspots automatically. Panning also updates the map, without manual
+pagination. Viewports crossing the antimeridian are expressed with `west > east`.
+
+Each group reports the full count, MODIS/VIIRS counts, detection interval, and
+maximum FRP. Visible-area counts are independent of the period total. Inclusive
+dates and repeated `continent` parameters are supported; without a continent
+filter, ocean points and points without a region are included. The spatial
+index is prepared in chunks during startup and stored in
+`backend/.cache/firms/map/`; it is invalidated when CSV files or geography change.
+If invalidated while the API is running, the endpoint returns HTTP 202 with
+progress. Previous requests are canceled when the view or filters change.
+
+The time series queries `GET /api/v1/time-series`, which counts **all**
+observations in the period by UTC day and continent, without pagination or
+sampling. It accepts `start_date`, `end_date`, and repeated `continent`
+parameters to select multiple regions.
+
+Persistent daily summaries are prepared during startup in
+`backend/.cache/firms/daily/`. The calculation classifies points in chunks using
+the same polygons as the map. Summaries are reused and invalidated when the CSV
+or geography file changes. If recalculation is needed while the API is running,
+it returns HTTP 202 with progress, and the interface waits for complete totals.
+They can also be prepared with `python -m app.time_series`.
+
+Days without records in any file appear as gaps. A zero for a region is shown
+only on days with records in the queried dataset. The summary includes
+available dates and detections without an identified region. The last 7/30/90
+days filters use the current date; use Custom for historical files.
+
+### Pair harmonization
+
+From `backend/`, run:
+
+```bash
+python -m app.data.ArmMV_FRP_por_par --horas 24 --superposicion 20
+# One or more folders and/or files:
+python -m app.data.ArmMV_FRP_por_par \
+  --entrada app/data/DL_FIRE_M-C61_848778 app/data/DL_FIRE_SV-C2_848781 \
+  --desde 2025-11-16 --hasta 2025-11-16 \
+  --salida app/data/resultados_armonizacion
+```
+
+Without `--entrada`/`--carpeta`, it uses the same input configuration as the API.
+`--carpeta` remains available and searches recursively. Valid observations from
+MODIS and at least one VIIRS platform are required; not all satellites are
+needed. `--desde` and `--hasta` are inclusive and filter in chunks before the
+spatial index is built. The analysis keeps the selected period in memory:
+process bounded periods for global downloads spanning several GB.
+
+The default output is `app/data/resultados_armonizacion/` (or the
+`resultados_armonizacion` subfolder of `--carpeta`). The API reads pairs from
+`FIRMS_DATA_DIR/resultados_armonizacion/`, or
+`app/data/resultados_armonizacion/` if that variable is unset.
+`GET /api/v1/harmonization/pairs` returns an empty list until the script is run
+and its output is saved there.
+
+The script approximates footprints with rectangles aligned to local axes.
+A spatial and temporal match does not by itself prove that observations refer
+to the same fire, and FRP values from different sensors are not calibrated
+against each other.
+
+### Geography and routes
+
+Continent classification uses Natural Earth 1:110m Admin 0 polygons bundled in
+`app/resources/`. Classification works without network access. Use
+`NATURAL_EARTH_GEOJSON` to specify another local GeoJSON file.
+
+- `GET /api/v1/health`
+- `GET /api/v1/data/status`
+- `GET /api/v1/observations`
+- `GET /api/v1/map`
+- `GET /api/v1/time-series`
+- `GET /api/v1/harmonization/pairs`
+- `GET /api/v1/continents`
+- Interactive documentation: `/docs`
+
+### Tests
+
+From `backend/`:
+
+```bash
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+```
+
+---
+
+## Español
 
 Backend Python con FastAPI. Desde `backend/`, instalar dependencias con
 `pip install -r requirements.txt` y ejecutar la API con:
@@ -34,7 +245,7 @@ por bloques y el ZIP se valida y extrae temporalmente antes de instalar los
 archivos. Se necesitan unos 4,7 GB para los CSV y espacio adicional para el
 paquete en curso. Los conjuntos completos se reutilizan sin red.
 
-## Datos y esquema
+### Datos y esquema
 
 La API y el script de armonización descubren CSV recursivamente en `app/data/`.
 Se pueden copiar allí archivos sueltos o carpetas descomprimidas de descargas
@@ -150,7 +361,7 @@ El resumen incluye fechas disponibles y detecciones sin región identificada.
 Los filtros de últimos 7/30/90 días usan la fecha actual; para archivos
 históricos, usa Personalizado.
 
-## Armonización de pares
+### Armonización de pares
 
 Desde `backend/`, ejecutar:
 
@@ -180,7 +391,7 @@ El script aproxima las huellas con rectángulos alineados a los ejes locales.
 Una coincidencia espacio-temporal no demuestra por sí sola que sea el mismo
 incendio y los valores FRP de distintos sensores no están calibrados entre sí.
 
-## Geografía y rutas
+### Geografía y rutas
 
 La clasificación continental usa los polígonos Admin 0 de Natural Earth
 1:110m incluidos en `app/resources/`. La clasificación funciona sin red.
@@ -195,7 +406,7 @@ Se puede indicar otro GeoJSON local con `NATURAL_EARTH_GEOJSON`.
 - `GET /api/v1/continents`
 - Documentación interactiva: `/docs`
 
-## Pruebas
+### Pruebas
 
 Desde `backend/`:
 
