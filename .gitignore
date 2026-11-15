@@ -28,3 +28,7 @@ dist-ssr
 __pycache__/
 *.py[cod]
 backend/.cache/
+# Datos FIRMS descargados en el arranque (sin Git LFS).
+backend/app/data/DL_FIRE*/
+backend/app/data/*.zip
+backend/app/.firms-*/
