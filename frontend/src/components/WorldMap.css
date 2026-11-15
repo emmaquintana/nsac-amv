@@ -65,12 +65,17 @@
 
 .world-map__footer {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   justify-content: space-between;
   padding: 12px 20px;
   border-top: 1px solid var(--border);
   color: var(--text-muted);
   font-size: calc(9px * 1.5);
 }
+
+.world-map__footer > div { display: grid; gap: 4px; }
 
 @media (max-width: 760px) {
   .world-map__canvas { min-height: 330px; }

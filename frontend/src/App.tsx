@@ -5,24 +5,23 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { TimeSeries } from './components/TimeSeries'
 import { WorldMap } from './components/WorldMap'
 import type { AppliedFilters, View } from './types/app'
-import { regions } from './types/app'
+import { filtersForPeriod } from './filters'
 import './App.css'
 
 export default function App() {
   const [view, setView] = useState<View>('map')
-  const [filters, setFilters] = useState<AppliedFilters>({
-    regions,
-    startDate: '',
-    endDate: '',
-  })
+  const [seriesVisited, setSeriesVisited] = useState(false)
+  const [mapFilters, setMapFilters] = useState<AppliedFilters>(() => filtersForPeriod())
+  const [seriesFilters, setSeriesFilters] = useState<AppliedFilters>(() => filtersForPeriod())
 
-  function handleApplyFilters(nextFilters: AppliedFilters) {
-    setFilters(nextFilters)
+  function changeView(nextView: View) {
+    if (nextView === 'series') setSeriesVisited(true)
+    setView(nextView)
   }
 
   return (
     <div className="app-shell">
-      <Sidebar view={view} onViewChange={setView} />
+      <Sidebar view={view} onViewChange={changeView} />
 
       <main className="app-main">
         <header className="app-header">
@@ -47,13 +46,15 @@ export default function App() {
             </div>
           </div>
 
-          <div className="app-content__layout">
-            <FilterPanel key={view} view={view} onApply={handleApplyFilters} />
-
-            {view === 'map'
-              ? <WorldMap filters={filters} />
-              : <TimeSeries filters={filters} />}
+          <div className="app-content__layout" hidden={view !== 'map'}>
+            <FilterPanel view="map" onApply={setMapFilters} />
+            <WorldMap filters={mapFilters} active={view === 'map'} />
           </div>
+
+          {seriesVisited && <div className="app-content__layout" hidden={view !== 'series'}>
+            <FilterPanel view="series" onApply={setSeriesFilters} />
+            <TimeSeries filters={seriesFilters} />
+          </div>}
 
           <footer className="app-footer">
             <span>NSAC · Armonización de datos satelitales</span>

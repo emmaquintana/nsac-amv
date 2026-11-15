@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { AppliedFilters, Period, View } from '../types/app'
 import { regions } from '../types/app'
+import { DEFAULT_PERIOD, filtersForPeriod } from '../filters'
 import './FilterPanel.css'
 
 type FilterPanelProps = {
@@ -8,16 +9,9 @@ type FilterPanelProps = {
   onApply: (filters: AppliedFilters) => void
 }
 
-function formatDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-
-  return `${year}-${month}-${day}`
-}
-
 export function FilterPanel({ view, onApply }: FilterPanelProps) {
-  const [period, setPeriod] = useState<Period>('30')
+  const id = useId()
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD)
   const [selectedRegions, setSelectedRegions] = useState<string[]>(regions)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -35,27 +29,20 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
       return
     }
 
-    const end = new Date()
-    const start = new Date(end)
-
-    if (period !== 'custom') {
-      start.setDate(end.getDate() - Number(period) + 1)
-    }
-
     setError('')
-    onApply({
+    onApply(period === 'custom' ? {
       regions: selectedRegions,
-      startDate: period === 'custom' ? startDate : formatDate(start),
-      endDate: period === 'custom' ? endDate : formatDate(end),
-    })
+      startDate,
+      endDate,
+    } : filtersForPeriod(period, selectedRegions))
   }
 
   return (
-    <section className="filter-panel" aria-labelledby="filter-panel-title">
+    <section className="filter-panel" aria-labelledby={`${id}-title`}>
       <header className="filter-panel__header">
         <div>
           <span className="filter-panel__eyebrow">CONFIGURACIÓN</span>
-          <h2 id="filter-panel-title">Filtros</h2>
+          <h2 id={`${id}-title`}>Filtros</h2>
         </div>
         <span className="filter-panel__header-icon" aria-hidden="true">⌘</span>
       </header>
@@ -77,9 +64,9 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
         </fieldset>
       ) : (
         <div className="filter-panel__field">
-          <label htmlFor="region-filter">Región</label>
+          <label htmlFor={`${id}-region`}>Región</label>
           <select
-            id="region-filter"
+            id={`${id}-region`}
             value={selectedRegions.length === regions.length ? '' : selectedRegions[0] ?? ''}
             onChange={(event) => setSelectedRegions(event.target.value ? [event.target.value] : regions)}
           >
@@ -90,9 +77,9 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
       )}
 
       <div className="filter-panel__field">
-        <label htmlFor="period-filter">Periodo</label>
+        <label htmlFor={`${id}-period`}>Periodo</label>
         <select
-          id="period-filter"
+          id={`${id}-period`}
           value={period}
           onChange={(event) => setPeriod(event.target.value as Period)}
         >
@@ -106,9 +93,9 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
       {period === 'custom' && (
         <div className="filter-panel__date-range">
           <div className="filter-panel__field">
-            <label htmlFor="start-date">Fecha de inicio</label>
+            <label htmlFor={`${id}-start`}>Fecha de inicio</label>
             <input
-              id="start-date"
+              id={`${id}-start`}
               type="date"
               value={startDate}
               max={endDate || undefined}
@@ -116,9 +103,9 @@ export function FilterPanel({ view, onApply }: FilterPanelProps) {
             />
           </div>
           <div className="filter-panel__field">
-            <label htmlFor="end-date">Fecha de fin</label>
+            <label htmlFor={`${id}-end`}>Fecha de fin</label>
             <input
-              id="end-date"
+              id={`${id}-end`}
               type="date"
               value={endDate}
               min={startDate || undefined}

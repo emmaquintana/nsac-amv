@@ -1,4 +1,10 @@
 .time-series {
+  --series-0: #008b9f;
+  --series-1: #d66c18;
+  --series-2: #8164c4;
+  --series-3: #43802b;
+  --series-4: #cf4672;
+  --series-5: #3972bb;
   display: flex;
   min-width: 0;
   min-height: 480px;
@@ -21,13 +27,27 @@
   font-size: calc(10px * 1.5);
 }
 
-.time-series__chart { display: flex; min-height: 330px; flex: 1; flex-direction: column; justify-content: flex-end; margin-top: 28px; }
-.time-series__bars { display: flex; min-height: 250px; align-items: flex-end; gap: 3px; border-bottom: 1px solid var(--border); }
-.time-series__bar-column { display: flex; min-width: 4px; flex: 1; height: 100%; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
-.time-series__bar-column > span { color: var(--text-muted); font-size: 9px; }
-.time-series__bar-column > div { width: 100%; min-height: 3px; border-radius: 3px 3px 0 0; background: #ed8b39; }
-.time-series__labels { display: flex; justify-content: space-between; padding-top: 7px; color: var(--text-muted); font: 10px var(--font-mono); }
-.time-series__chart > p { color: var(--text-muted); font-size: 12px; }
+.time-series__chart { display: flex; min-height: 330px; flex: 1; flex-direction: column; justify-content: flex-end; margin-top: 24px; }
+.time-series__legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 0 0 20px; padding: 0; list-style: none; }
+.time-series__legend li { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: 13px; }
+.time-series__legend svg { flex-shrink: 0; }
+.time-series__plot { min-width: 0; overflow-x: auto; }
+.time-series__svg { display: block; width: 100%; min-width: 540px; }
+.time-series__grid { stroke: var(--border); stroke-dasharray: 3 5; }
+.time-series__tick, .time-series__axis-title { fill: var(--text-muted); font: 11px var(--font-mono); }
+.time-series__point { opacity: 0; }
+.time-series__point--visible { opacity: 1; }
+.time-series__point:hover { opacity: 1; r: 6; }
+.time-series__chart > p { margin: 6px 0 12px; color: var(--text-muted); font-size: 12px; }
+
+:root[data-theme='dark'] .time-series {
+  --series-0: #54d6e5;
+  --series-1: #ffad66;
+  --series-2: #c3a7ff;
+  --series-3: #b8df7e;
+  --series-4: #ff8eb5;
+  --series-5: #8cbfff;
+}
 
 .time-series__date-range {
   display: inline-block;
