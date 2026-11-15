@@ -13,6 +13,7 @@ from uuid import uuid4
 import duckdb
 
 from app.firms import FirmsFile, discover_files
+from app.i18n import t
 
 CACHE_VERSION = 1
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ def _build(dataset: FirmsFile, target: Path) -> None:
                                 parallel=False).create_view("raw")
             connection.sql(sql).write_parquet(str(temporary), compression="zstd")
         if cache_path(dataset) != target:
-            raise ValueError(f"El CSV cambió durante la preparación: {dataset.path.name}. Vuelve a intentar.")
+            raise ValueError(t("catalog.changed", file=dataset.path.name))
         temporary.replace(target)
     finally:
         temporary.unlink(missing_ok=True)
@@ -104,7 +105,7 @@ def prepare_files(files: list[FirmsFile], progress: Callable[[int, FirmsFile], N
                 progress(index, dataset)
             target = cache_path(dataset)
             if not target.is_file():
-                logger.info("Preparando %s", dataset.path.name)
+                logger.info(t("catalog.preparing", file=dataset.path.name))
                 _build(dataset, target)
             paths.append(target)
         if progress and files:
@@ -145,7 +146,7 @@ def catalog_status(files: list[FirmsFile] | None = None) -> dict:
                 with _state_lock:
                     _state.update(ready)
             except Exception as error:
-                logger.exception("No se pudo preparar la caché FIRMS")
+                logger.exception(t("catalog.failed"))
                 with _state_lock:
                     _state.update(state="error", error=str(error))
 
@@ -157,4 +158,4 @@ def catalog_status(files: list[FirmsFile] | None = None) -> dict:
 if __name__ == "__main__":
     files = discover_files()
     prepare_files(files, lambda index, item: print(f"{index}/{len(files)}: {item.path.name}", flush=True))
-    print("Caché FIRMS lista", flush=True)
+    print(t("catalog.ready"), flush=True)

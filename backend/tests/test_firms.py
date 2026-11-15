@@ -28,7 +28,8 @@ class FirmsTests(unittest.TestCase):
         self.temp = TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.env = patch.dict(os.environ, {"FIRMS_PATHS": str(self.root), "FIRMS_CACHE_DIR": str(self.root / "cache")})
+        self.env = patch.dict(os.environ, {"FIRMS_PATHS": str(self.root), "FIRMS_CACHE_DIR": str(self.root / "cache"),
+                                          "NSAC_LANGUAGE": "es", "PYTHONIOENCODING": "utf-8"})
         self.env.start()
         self.addCleanup(self.env.stop)
         self.geo = patch("app.services.continent_for", return_value="Sudamérica")
@@ -115,12 +116,17 @@ class FirmsTests(unittest.TestCase):
         self.write("DL_FIRE_M-C61_1/fire_nrt_M-C61_1.csv", version="6.1NRT")
         self.write("DL_FIRE_SV-C2_2/fire_archive_SV-C2_2.csv", satellite="SNPP", instrument="SNPP", version="2")
         out = self.root / "resultados"
-        result = subprocess.run(
-            [sys.executable, "-m", "app.data.ArmMV_FRP_por_par", "--entrada", str(self.root),
-             "--salida", str(out), "--desde", "2026-01-01", "--hasta", "2026-01-01"],
-            capture_output=True, text=True,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        for language, summary, label in (("en", "FINAL SUMMARY", "Matching pairs"),
+                                         ("es", "RESUMEN FINAL", "Pares coincidentes")):
+            result = subprocess.run(
+                [sys.executable, "-m", "app.data.ArmMV_FRP_por_par", "--entrada", str(self.root),
+                 "--salida", str(out), "--desde", "2026-01-01", "--hasta", "2026-01-01"],
+                capture_output=True, text=True, encoding="utf-8", timeout=60,
+                env={**os.environ, "NSAC_LANGUAGE": language},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(summary, result.stdout)
+            self.assertIn(label, result.stdout)
         with (out / "coincidencias_modis_viirs.csv").open() as stream:
             pairs = list(csv.DictReader(stream))
         self.assertEqual(len(pairs), 2)

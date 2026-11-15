@@ -3,7 +3,6 @@ Instalar: pip install -r requirements.txt (desde backend/)
 Ejecutar: python -m app.data.ArmMV_FRP_por_par --horas 24 --superposicion 20
 Los rectángulos scan/track están alineados E-O/N-S (NO son huellas reales).
 """
-import argparse
 from pathlib import Path
 import csv
 import numpy as np
@@ -11,6 +10,7 @@ import pandas as pd
 from scipy.spatial import cKDTree
 from pyproj import Geod
 from app.firms import DATA_DIR, FirmsFile, discover_files
+from app.i18n import ArgumentParser, format_count, t
 
 COLS_PARES = ['id_modis','id_viirs','satelite_modis','satelite_viirs','fecha_modis_utc','fecha_viirs_utc','diferencia_horas','lat_modis','lon_modis','lat_viirs','lon_viirs','distancia_centros_m','area_interseccion_m2','superposicion_viirs_pct','superposicion_modis_pct','frp_modis_mw','frp_viirs_mw','frp_suma_par_mw','confianza_modis_original','confianza_viirs_original']
 
@@ -29,7 +29,7 @@ def leer(dataset: FirmsFile, desde=None, hasta=None):
     df = pd.concat(bloques) if bloques else pd.read_csv(ruta, nrows=0, encoding='utf-8-sig')
     req = {'latitude','longitude','scan','track','acq_date','acq_time','frp','satellite','confidence'}
     if not req.issubset(df.columns):
-        raise ValueError(f'{ruta.name}: faltan {sorted(req-set(df.columns))}')
+        raise ValueError(t('pairs.missing_columns', file=ruta.name, columns=sorted(req-set(df.columns))))
     df = df.copy()
     for c in ['latitude','longitude','scan','track','frp']:
         df[c] = pd.to_numeric(df[c], errors='coerce')
@@ -50,7 +50,8 @@ def leer(dataset: FirmsFile, desde=None, hasta=None):
     df['confianza_original'] = df['confidence'].astype('string')
     valid = (df['latitude'].between(-90,90)&df['longitude'].between(-180,180)&
              df['scan_m'].gt(0)&df['track_m'].gt(0)&df['frp'].ge(0)&df['fecha_utc'].notna())
-    print(f'{ruta.name} ({dataset.source}): {len(df):,} filas; inválidas descartadas: {(~valid).sum():,}',flush=True)
+    print(t('pairs.rows', file=ruta.name, source=dataset.source, rows=format_count(len(df)),
+            invalid=format_count((~valid).sum())), flush=True)
     return df.loc[valid].reset_index(drop=True)
 
 def xyz(df):
@@ -59,23 +60,28 @@ def xyz(df):
     return np.column_stack((np.cos(lat)*np.cos(lon),np.cos(lat)*np.sin(lon),np.sin(lat)))
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--carpeta',type=Path,default=None,help='Carpeta de CSV FIRMS; busca recursivamente')
-    p.add_argument('--entrada',type=Path,nargs='+',help='Uno o varios archivos CSV y/o carpetas FIRMS')
-    p.add_argument('--desde',type=str,help='Fecha UTC inicial inclusiva (AAAA-MM-DD)')
-    p.add_argument('--hasta',type=str,help='Fecha UTC final inclusiva (AAAA-MM-DD)')
-    p.add_argument('--salida',type=Path,default=None,help='Carpeta de salida (por defecto, data/resultados_armonizacion)')
+    p=ArgumentParser(description=t('cli.description'))
+    p.add_argument('--carpeta',type=Path,default=None,help=t('cli.folder'))
+    p.add_argument('--entrada',type=Path,nargs='+',help=t('cli.inputs'))
+    p.add_argument('--desde',type=str,help=t('cli.start'))
+    p.add_argument('--hasta',type=str,help=t('cli.end'))
+    p.add_argument('--salida',type=Path,default=None,help=t('cli.output'))
     p.add_argument('--horas',type=float,default=24)
-    p.add_argument('--superposicion',type=float,default=20,help='Porcentaje mínimo de VIIRS dentro de MODIS; 0 permite toda intersección positiva')
+    p.add_argument('--superposicion',type=float,default=20,help=t('cli.overlap'))
     p.add_argument('--lote',type=int,default=500)
     a=p.parse_args()
-    if not (0<=a.superposicion<=100) or a.horas<0 or a.lote<1: p.error('Parámetros inválidos')
-    if a.carpeta and a.entrada: p.error('Usa --carpeta o --entrada, no ambos')
+    if not (0<=a.superposicion<=100) or a.horas<0 or a.lote<1: p.error(t('cli.invalid_parameters'))
+    if a.carpeta and a.entrada: p.error(t('cli.exclusive_inputs'))
     from datetime import date
+    for field in ('desde', 'hasta'):
+        value = getattr(a, field)
+        if value:
+            try:
+                setattr(a, field, date.fromisoformat(value).isoformat())
+            except ValueError:
+                p.error(t('cli.invalid_date', value=value))
+    if a.desde and a.hasta and a.desde > a.hasta: p.error(t('cli.date_order'))
     try:
-        if a.desde: a.desde = date.fromisoformat(a.desde).isoformat()
-        if a.hasta: a.hasta = date.fromisoformat(a.hasta).isoformat()
-        if a.desde and a.hasta and a.desde > a.hasta: p.error('--desde debe ser anterior o igual a --hasta')
         archivos = discover_files(a.entrada or ([a.carpeta] if a.carpeta else None))
     except (ValueError, FileNotFoundError) as error:
         p.error(str(error))
@@ -90,14 +96,14 @@ def main():
     m_parts=[df for df in datos if not df.empty and df['instrumento'].iat[0]=='MODIS']
     v_parts=[df for df in datos if not df.empty and df['instrumento'].iat[0]=='VIIRS']
     if not m_parts or not v_parts:
-        p.error('Se necesitan observaciones válidas MODIS y VIIRS en el período seleccionado')
+        p.error(t('cli.observations'))
     m=pd.concat(m_parts,ignore_index=True);v=pd.concat(v_parts,ignore_index=True)
     out.mkdir(parents=True,exist_ok=True)
     columnas=list(dict.fromkeys(column for df in datos for column in df.columns))
     for index,df in enumerate(datos):
         df.reindex(columns=columnas).to_csv(out/'observaciones_normalizadas.csv',
             index=False,mode='w' if index==0 else 'a',header=index==0)
-    print('Guardadas observaciones normalizadas:',sum(len(df) for df in datos),flush=True)
+    print(t('pairs.saved', count=format_count(sum(len(df) for df in datos))), flush=True)
     del datos,m_parts,v_parts
     # KDTree en coordenadas esféricas 3D: sin problemas con antimeridiano.
     # Radio conservador basado en diagonales máximas de ambas huellas.
@@ -145,7 +151,8 @@ def main():
                     writer.writerow([mi[i],vi[j],msat[i],vsat[j],str(m['fecha_utc'].iat[i]),str(v['fecha_utc'].iat[j]),round(float(delta),4),mlat[i],mlon[i],vm_lat[j],vm_lon[j],round(float(d),2),round(float(ar),2),round(float(pct*100),3),round(float(ar/(mscan[i]*mtrack[i])*100),3),mfrp[i],vf[j],round(float(mfrp[i]+vf[j]),4),mconf[i],vconf[j]])
                     counts[i]+=1;sums[i]+=vf[j];seen.add(int(j));pairs_count+=1
             if (end%5000<a.lote) or end==n:
-                print(f'Procesados MODIS: {end:,}/{n:,} | pares: {pairs_count:,}',flush=True)
+                print(t('pairs.progress', completed=format_count(end), total=format_count(n),
+                        pairs=format_count(pairs_count)), flush=True)
     finally:f.close()
     resumen=pd.DataFrame({'id_modis':mi,'fecha_modis_utc':m['fecha_utc'],'latitude':mlat,'longitude':mlon,'frp_modis_mw':mfrp,'n_coincidencias_viirs':counts,'frp_viirs_suma_por_modis_mw':np.where(counts>0,sums,np.nan)})
     resumen.to_csv(out/'resumen_por_modis.csv',index=False)
@@ -161,12 +168,14 @@ def main():
         'superposicion_min_viirs_pct':a.superposicion
     }])
     resumen_general.to_csv(out/'resumen_general.csv',index=False)
-    print('\nRESUMEN FINAL\n'+resumen_general.to_string(index=False),flush=True)
-    print('\nTABLA DE FRP POR PAR (primeros 20; tabla completa en coincidencias_modis_viirs.csv):')
+    summary_display = resumen_general.rename(columns={column: t(f'column.{column}') for column in resumen_general.columns})
+    print('\n'+t('pairs.summary')+'\n'+summary_display.to_string(index=False), flush=True)
+    print('\n'+t('pairs.table'))
     columnas_tabla=['id_modis','id_viirs','diferencia_horas','frp_modis_mw','frp_viirs_mw','frp_suma_par_mw']
     tabla=pd.read_csv(out/'coincidencias_modis_viirs.csv',usecols=columnas_tabla,nrows=20)
-    print(tabla.to_string(index=False) if len(tabla) else 'No se encontraron pares.',flush=True)
-    print('\nArchivos en:',out,flush=True)
-    print('ADVERTENCIA: coincidencia espacial y temporal no implica mismo incendio; FRP no está calibrado entre sensores.',flush=True)
+    table_display = tabla.rename(columns={column: t(f'column.{column}') for column in tabla.columns})
+    print(table_display.to_string(index=False) if len(tabla) else t('pairs.empty'), flush=True)
+    print('\n'+t('pairs.output', path=out), flush=True)
+    print(t('pairs.warning'), flush=True)
 
 if __name__=='__main__':main()

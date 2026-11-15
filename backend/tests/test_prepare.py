@@ -12,7 +12,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from api.api import app
-from app.downloads import DATA_WARNING
+from app.i18n import t
 
 
 class PreparationTests(unittest.TestCase):
@@ -30,6 +30,7 @@ class PreparationTests(unittest.TestCase):
         environment = patch.dict(os.environ, {
             "FIRMS_PATHS": str(self.data), "FIRMS_CACHE_DIR": str(self.root / "cache"),
             "PYTHONUTF8": "1",
+            "NSAC_LANGUAGE": "es",
         })
         environment.start()
         self.addCleanup(environment.stop)
@@ -73,7 +74,7 @@ class PreparationTests(unittest.TestCase):
                         with TestClient(app):
                             self.fail("La API no debe aceptar peticiones antes de preparar las cachés")
                 daily.assert_not_called()
-        self.assertIn(DATA_WARNING, logs.output[-1])
+        self.assertIn(t("firms.warning"), logs.output[-1])
 
     def test_cli_returns_error_when_data_cannot_be_prepared(self):
         with patch.dict(os.environ, {"FIRMS_PATHS": str(self.root / "missing")}):
@@ -96,7 +97,7 @@ class PreparationTests(unittest.TestCase):
                                             text=True, encoding="utf-8", timeout=60)
                     self.assertEqual(result.returncode, 1)
                     self.assertIn("\x1b[33mWARNING\x1b[0m", result.stderr)
-                    self.assertIn(DATA_WARNING, result.stderr)
+                    self.assertIn(t("firms.warning"), result.stderr)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,16 @@ it uses English. The **EN / ES** button in the header changes the language
 without losing filters and saves the choice for future visits in that browser.
 Text, dates, and numbers adapt to the selected language.
 
+### Script output language
+
+Project scripts use the system language for console messages, warnings, errors,
+command-line help, and displayed summaries. English and Spanish are supported;
+other languages fall back to English. Locale environment variables (`LC_ALL`,
+`LC_MESSAGES`, `LANGUAGE`, and `LANG`) are respected. Set `NSAC_LANGUAGE=en` or
+`NSAC_LANGUAGE=es` to override detection. `npm run dev` passes the detected
+language to its child processes. This setting is independent of the frontend's
+language selector. Command names and CSV file names and columns stay the same.
+
 ### Automatic FIRMS data downloads
 
 The CSV files in `backend/app/data/` are downloaded directly from NASA FIRMS and
@@ -147,6 +157,17 @@ idioma compatible de las preferencias del sistema/navegador; si ninguno es
 compatible, utiliza inglés. El botón **EN / ES** del encabezado cambia el idioma
 sin perder los filtros y guarda la elección para las próximas visitas en ese
 navegador. Los textos, las fechas y los números se adaptan al idioma seleccionado.
+
+### Idioma de salida de los scripts
+
+Los scripts del proyecto usan el idioma del sistema para los mensajes de
+consola, advertencias, errores, ayuda de comandos y resúmenes mostrados. Se
+admiten inglés y español; para otros idiomas se usa inglés. Se respetan las
+variables de idioma (`LC_ALL`, `LC_MESSAGES`, `LANGUAGE` y `LANG`). Para elegir
+un idioma explícitamente, configura `NSAC_LANGUAGE=en` o `NSAC_LANGUAGE=es`.
+`npm run dev` transmite el idioma detectado a los procesos que inicia. Esta
+configuración es independiente del selector de idioma del frontend. Se
+conservan los nombres de comandos, archivos CSV y columnas.
 
 ### Descarga automática de datos FIRMS
 

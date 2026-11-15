@@ -7,14 +7,14 @@ import { PassThrough } from 'node:stream'
 import { test } from 'node:test'
 import { startDevelopment } from './dev.mjs'
 
-function setup(t) {
+function setup(t, language = 'es') {
   const root = mkdtempSync(join(tmpdir(), 'nsac-dev-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const vite = join(root, 'frontend/node_modules/vite/bin/vite.js')
   mkdirSync(join(root, 'frontend/node_modules/vite/bin'), { recursive: true })
   writeFileSync(vite, '')
   const runtime = Object.assign(new EventEmitter(), {
-    cwd: () => root, env: { PYTHON: 'test-python' }, execPath: 'test-node', platform: 'win32',
+    cwd: () => root, env: { PYTHON: 'test-python', NSAC_LANGUAGE: language }, execPath: 'test-node', platform: 'win32',
     stderr: new PassThrough(),
   })
   const calls = []
@@ -37,12 +37,14 @@ test('API y Vite esperan descargas y todas las cachés de FIRMS', (t) => {
   const { calls, runtime } = setup(t)
   assert.equal(calls.length, 1)
   assert.equal(calls[0].command, 'test-python')
+  assert.equal(calls[0].options.env.NSAC_LANGUAGE, 'es')
   assert.deepEqual(calls[0].args, ['-m', 'app.prepare'])
   calls[0].child.finish(0)
   assert.equal(calls.length, 2)
   assert.deepEqual(calls[1].args, ['-m', 'uvicorn', 'api.api:app', '--reload'])
   assert.equal(calls[1].options.env.PYTHONIOENCODING, 'utf-8')
   assert.equal(calls[1].options.env.PYTHON, 'test-python')
+  assert.equal(calls[1].options.env.NSAC_LANGUAGE, 'es')
   calls[1].child.stderr.write('INFO:     Application startup complete.\n')
   assert.equal(calls.length, 3)
   assert.equal(calls[2].command, 'test-node')
@@ -109,4 +111,13 @@ test('un intérprete inexistente impide iniciar servidores', (t) => {
   calls[0].child.emit('error', new Error('Intérprete inexistente (prueba)'))
   assert.equal(calls.length, 1)
   assert.equal(runtime.exitCode, 1)
+})
+
+test('propagates English to preparation, API, and frontend processes', (t) => {
+  const { calls, runtime } = setup(t, 'en')
+  calls[0].child.finish(0)
+  calls[1].child.stderr.write('INFO:     Application startup complete.\n')
+  assert.equal(calls.length, 3)
+  for (const call of calls) assert.equal(call.options.env.NSAC_LANGUAGE, 'en')
+  runtime.emit('SIGINT')
 })

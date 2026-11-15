@@ -29,7 +29,7 @@ test('borra CSV y ZIP recursivamente y conserva código y documentación', async
 test('--dry-run informa archivos sin borrarlos', async (t) => {
   const { root, dataFiles } = await setup(t)
   const messages = []
-  const result = await cleanData(root, { dryRun: true, log: (message) => messages.push(message) })
+  const result = await cleanData(root, { dryRun: true, language: 'es', log: (message) => messages.push(message) })
   assert.equal(result.count, 3)
   assert.equal(result.bytes, 27)
   assert.ok(messages.at(-1).includes('Se borrarían 3 archivos'))
@@ -45,4 +45,18 @@ test('no sigue enlaces a carpetas externas', async (t) => {
   await symlink(outside, join(root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
   await cleanData(root, { log() {} })
   assert.equal(await readFile(file, 'utf8'), 'preservar')
+})
+
+test('dry-run reports in either language without deleting data', async (t) => {
+  const { root, dataFiles } = await setup(t)
+  for (const [language, prefix, summary] of [
+    ['en', 'Would delete:', 'Would delete 3 CSV/ZIP files (0.00 GiB).'],
+    ['es', 'Se borraría:', 'Se borrarían 3 archivos CSV/ZIP (0,00 GiB).'],
+  ]) {
+    const messages = []
+    await cleanData(root, { dryRun: true, language, log: (message) => messages.push(message) })
+    assert.ok(messages[0].startsWith(prefix))
+    assert.equal(messages.at(-1), summary)
+  }
+  for (const file of dataFiles) assert.equal(await readFile(file, 'utf8'), 'contenido')
 })

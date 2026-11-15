@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 from typing import Iterable, Literal
+from app.i18n import t
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ def _describe(path: Path) -> FirmsFile | None:
     elif "VIIRS" in path.name.upper() or "bright_ti4" in columns:
         source = "VIIRS"
     if source is None:
-        logger.warning("CSV FIRMS sin sensor MODIS/VIIRS reconocible: %s", path)
+        logger.warning(t("firms.unknown_sensor", path=path))
         return None
     kind = re.search(r"fire_(archive|nrt)_", path.name, re.IGNORECASE)
     return FirmsFile(path, source, satellite, product, kind.group(1).lower() if kind else None)
@@ -82,10 +83,10 @@ def discover_files(inputs: Iterable[Path] | None = None) -> list[FirmsFile]:
     for entry in configured_inputs() if inputs is None else inputs:
         entry = Path(entry).expanduser().resolve()
         if not entry.exists():
-            raise FileNotFoundError(f"No existe la ruta de datos FIRMS: {entry}")
+            raise FileNotFoundError(t("firms.missing_path", path=entry))
         candidates = entry.rglob("*") if entry.is_dir() else (entry,)
         paths.update(path.resolve() for path in candidates if path.is_file() and path.suffix.lower() == ".csv")
     result = [item for path in sorted(paths) if (item := _describe(path)) is not None]
     if not result:
-        raise ValueError("No se encontraron CSV FIRMS MODIS/VIIRS en las rutas indicadas")
+        raise ValueError(t("firms.no_csv"))
     return result

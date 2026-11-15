@@ -11,7 +11,8 @@ from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
-from app.downloads import DOWNLOADS, DATA_WARNING, _download, ensure_downloads
+from app.downloads import DOWNLOADS, _download, ensure_downloads
+from app.i18n import t
 
 CSV = "latitude,longitude,acq_date,acq_time\n"
 
@@ -26,6 +27,7 @@ class DownloadTests(unittest.TestCase):
             "FIRMS_PATHS", "MODIS_CSV", "VIIRS_J1_CSV", "VIIRS_J2_CSV", "VIIRS_SNPP_CSV",
         }}
         environment["FIRMS_DATA_DIR"] = str(self.root)
+        environment["NSAC_LANGUAGE"] = "es"
         self.env = patch.dict(os.environ, environment, clear=True)
         self.env.start()
         self.addCleanup(self.env.stop)
@@ -155,7 +157,7 @@ class DownloadTests(unittest.TestCase):
                 with TestClient(app) as client:
                     prepare.assert_called_once_with()
                     self.assertEqual(client.get("/api/v1/health").json(), {"status": "ok"})
-            self.assertIn(DATA_WARNING, logs.output[-1])
+            self.assertIn(t("firms.warning"), logs.output[-1])
         with patch("api.api.prepare_data", side_effect=RuntimeError("Descarga fallida")):
             with self.assertRaisesRegex(RuntimeError, "Descarga fallida"):
                 with TestClient(app):

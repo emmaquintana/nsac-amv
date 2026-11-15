@@ -4,15 +4,18 @@ import { resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
 import { stripVTControlCharacters } from 'node:util'
+import { createTranslator, systemLanguage } from './i18n.mjs'
 
 export function startDevelopment({ spawnProcess = spawn, runtime = process } = {}) {
+  const language = systemLanguage({ env: runtime.env })
+  const t = createTranslator(language)
   const root = runtime.cwd()
   const frontend = resolve(root, 'frontend')
   const backend = resolve(root, 'backend')
   const vite = resolve(frontend, 'node_modules/vite/bin/vite.js')
 
   if (!existsSync(vite)) {
-    console.error('No se encontraron las dependencias del frontend. Ejecuta: cd frontend && npm install')
+    console.error(t('dev.dependencies'))
     runtime.exitCode = 1
     return
   }
@@ -29,9 +32,12 @@ export function startDevelopment({ spawnProcess = spawn, runtime = process } = {
   }
 
   function launch(command, args, cwd, onSuccess, options = {}) {
-    const child = spawnProcess(command, args, { cwd, stdio: 'inherit', ...options })
+    const child = spawnProcess(command, args, {
+      cwd, stdio: 'inherit', ...options,
+      env: { ...runtime.env, ...options.env, NSAC_LANGUAGE: language, PYTHONIOENCODING: 'utf-8' },
+    })
     processes.push(child)
-    child.on('error', (error) => { console.error(error.message); stop(1) })
+    child.on('error', (error) => { console.error(t('dev.launch_error', { command, error: error.message })); stop(1) })
     child.on('exit', (code) => {
       if (stopping) return
       if (code === 0 && onSuccess) onSuccess()
@@ -42,7 +48,7 @@ export function startDevelopment({ spawnProcess = spawn, runtime = process } = {
 
   runtime.on('SIGINT', () => stop())
   runtime.on('SIGTERM', () => stop())
-  console.info('Preparando descargas, catálogo, mapa y totales diarios antes de iniciar la API y el frontend…')
+  console.info(t('dev.preparing'))
   launch(python, ['-m', 'app.prepare'], backend, () => {
     const api = launch(python, ['-m', 'uvicorn', 'api.api:app', '--reload'], backend,
       undefined, {

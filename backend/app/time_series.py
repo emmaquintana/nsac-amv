@@ -15,6 +15,7 @@ from app.catalog import cache_path, catalog_status, connect, prepare_files
 from app.firms import FirmsFile, discover_files
 from app.geography import continents_for, geography_signature
 from app.schemas import DailyCount, TimeSeriesSummary
+from app.i18n import t
 
 SUMMARY_VERSION = 1
 logger = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ def _build_summary(dataset: FirmsFile, target: Path) -> None:
             connection.sql("SELECT day::DATE AS day, continent::VARCHAR AS continent, count::BIGINT AS count FROM daily").write_parquet(
                 str(temporary), compression="zstd")
         if summary_path(dataset) != target:
-            raise ValueError(f"Los datos cambiaron durante el cálculo: {dataset.path.name}. Vuelve a intentar.")
+            raise ValueError(t("daily.changed", file=dataset.path.name))
         temporary.replace(target)
     finally:
         temporary.unlink(missing_ok=True)
@@ -71,7 +72,7 @@ def prepare_summaries(files: list[FirmsFile], progress=None) -> list[Path]:
                 progress(index, dataset)
             target = summary_path(dataset)
             if not target.is_file():
-                logger.info("Calculando totales diarios de %s", dataset.path.name)
+                logger.info(t("daily.preparing", file=dataset.path.name))
                 _build_summary(dataset, target)
             paths.append(target)
         if progress and files:
@@ -114,7 +115,7 @@ def time_series_status() -> dict:
                 with _state_lock:
                     _state.update(ready)
             except Exception as error:
-                logger.exception("No se pudieron calcular los totales diarios FIRMS")
+                logger.exception(t("daily.failed"))
                 with _state_lock:
                     _state.update(state="error", error=str(error))
 
@@ -155,4 +156,4 @@ def get_time_series(*, start_date: date | None = None, end_date: date | None = N
 
 if __name__ == "__main__":
     prepare_summaries(discover_files(), lambda index, item: print(f"{index}: {item.path.name}", flush=True))
-    print("Totales diarios FIRMS listos", flush=True)
+    print(t("daily.ready"), flush=True)

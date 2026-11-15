@@ -8,6 +8,7 @@ import geopandas as gpd
 import numpy as np
 import shapely
 from shapely.geometry import Point
+from app.i18n import t
 
 NATURAL_EARTH_FILE = Path(__file__).resolve().parent / "resources" / "ne_110m_admin_0_countries.geojson"
 CONTINENT_NAMES = {
@@ -33,7 +34,7 @@ def _natural_earth(signature: tuple[str, int, int] | None = None) -> gpd.GeoData
     source = (signature or geography_signature())[0]
     countries = gpd.read_file(source)
     if "CONTINENT" not in countries.columns:
-        raise ValueError("El dataset Natural Earth debe incluir la columna CONTINENT")
+        raise ValueError(t("geography.column"))
     return countries[["CONTINENT", "geometry"]].to_crs("EPSG:4326")
 
 

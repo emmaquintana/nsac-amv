@@ -16,6 +16,7 @@ from app.catalog import cache_path, catalog_status, connect, prepare_files
 from app.firms import FirmsFile, discover_files
 from app.geography import continents_for, geography_signature
 from app.schemas import MapObservations, MapPoint
+from app.i18n import t
 
 logger = logging.getLogger(__name__)
 _build_lock = Lock()
@@ -60,7 +61,7 @@ def _build_map(dataset: FirmsFile, target: Path) -> None:
                     NULL::VARCHAR AS continent, NULL::DOUBLE AS x, NULL::DOUBLE AS y WHERE false""").write_parquet(
                         str(temporary), compression="zstd")
         if map_path(dataset) != target:
-            raise ValueError(f"Los datos cambiaron durante la preparación del mapa: {dataset.path.name}")
+            raise ValueError(t("map.changed", file=dataset.path.name))
         temporary.replace(target)
     finally:
         temporary.unlink(missing_ok=True)
@@ -117,7 +118,7 @@ def map_status() -> dict:
                 with _state_lock:
                     _state.update(ready)
             except Exception as error:
-                logger.exception("No se pudo preparar el mapa FIRMS")
+                logger.exception(t("map.failed"))
                 with _state_lock:
                     _state.update(state="error", error=str(error))
 

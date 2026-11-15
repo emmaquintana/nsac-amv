@@ -3,7 +3,8 @@
 import logging
 
 from app.catalog import prepare_files
-from app.downloads import DATA_WARNING, ensure_downloads
+from app.downloads import ensure_downloads
+from app.i18n import t
 from app.firms import discover_files
 from app.map_points import prepare_map_files
 from app.time_series import prepare_summaries
@@ -13,29 +14,29 @@ logger = logging.getLogger("uvicorn.error.firms")
 
 def prepare_data() -> None:
     """Espera la preparación completa; propaga errores para impedir el arranque."""
-    stage = "descargas FIRMS"
+    stage = t("prepare.downloads")
     try:
         ensure_downloads()
         files = discover_files()
         total = len(files)
         for stage, prepare in (
-            ("Catálogo Parquet", prepare_files),
-            ("Índice del mapa", prepare_map_files),
-            ("Totales diarios", prepare_summaries),
+            (t("prepare.catalog"), prepare_files),
+            (t("prepare.map"), prepare_map_files),
+            (t("prepare.daily"), prepare_summaries),
         ):
-            logger.info("Comprobando y preparando %s", stage)
+            logger.info(t("prepare.stage", stage=stage))
 
             def progress(index, dataset):
-                logger.info("%s: %d/%d archivos (%d%%)%s", stage, index, total,
-                            round(100 * index / total),
-                            f" · {dataset.path.name}" if index < total else "")
+                logger.info(t("prepare.progress", stage=stage, index=index, total=total,
+                              percent=round(100 * index / total),
+                              file=f" · {dataset.path.name}" if index < total else ""))
 
             prepare(files, progress)
-        logger.info("Datos, catálogo, mapa y totales diarios listos. Se puede iniciar el frontend.")
+        logger.info(t("prepare.ready"))
     except Exception as error:
-        raise RuntimeError(f"Falló la preparación de {stage}: {error}") from error
+        raise RuntimeError(t("prepare.failed", stage=stage, error=error)) from error
     finally:
-        logger.warning("Fin de preparación de datos y cachés. %s", DATA_WARNING)
+        logger.warning(t("prepare.end", warning=t("firms.warning")))
 
 
 if __name__ == "__main__":
@@ -46,5 +47,5 @@ if __name__ == "__main__":
     try:
         prepare_data()
     except Exception as error:
-        logger.error("No se iniciarán los servidores: %s", error)
+        logger.error(t("prepare.error", error=error))
         raise SystemExit(1) from error

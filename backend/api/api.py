@@ -8,7 +8,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from app.catalog import catalog_status
-from app.downloads import DATA_WARNING, logger
+from app.downloads import logger
+from app.i18n import t
 from app.prepare import prepare_data
 from app.schemas import MapObservations, Observation, TimeSeriesSummary
 from app.map_points import get_map_observations, map_status
@@ -22,7 +23,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        logger.warning("Fin del servidor. %s", DATA_WARNING)
+        logger.warning(t("server.end", warning=t("firms.warning")))
 
 
 app = FastAPI(

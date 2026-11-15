@@ -39,6 +39,14 @@ its files are installed. About 4.7 GB is needed for the CSV files, plus extra
 space for the package being processed. Complete datasets are reused without
 network access.
 
+### Console language
+
+Python commands detect the system language and support English and Spanish,
+with English as the fallback. Locale environment variables are respected;
+`NSAC_LANGUAGE=en` or `NSAC_LANGUAGE=es` overrides detection. Messages, CLI help,
+and table headings displayed in the terminal are translated. CSV schemas,
+file names, and command-line option names remain unchanged.
+
 ### Data and schema
 
 The API and harmonization script discover CSV files recursively in `app/data/`.
@@ -244,6 +252,15 @@ acepta encabezados sin registros y reemplaza punteros LFS. La descarga se hace
 por bloques y el ZIP se valida y extrae temporalmente antes de instalar los
 archivos. Se necesitan unos 4,7 GB para los CSV y espacio adicional para el
 paquete en curso. Los conjuntos completos se reutilizan sin red.
+
+### Idioma de consola
+
+Los comandos Python detectan el idioma del sistema y admiten inglés y español,
+con inglés como alternativa para otros idiomas. Se respetan las variables de
+idioma del entorno; `NSAC_LANGUAGE=en` o `NSAC_LANGUAGE=es` permite elegirlo
+explícitamente. Se traducen los mensajes, la ayuda de comandos y los encabezados
+de tablas mostradas en la terminal. Se conservan los esquemas CSV, los nombres
+de archivos y los nombres de opciones de los comandos.
 
 ### Datos y esquema
 
