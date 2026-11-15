@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
+import { stripVTControlCharacters } from 'node:util'
 
 export function startDevelopment({ spawnProcess = spawn, runtime = process } = {}) {
   const root = runtime.cwd()
@@ -26,8 +28,8 @@ export function startDevelopment({ spawnProcess = spawn, runtime = process } = {
     runtime.exitCode = code
   }
 
-  function launch(command, args, cwd, onSuccess) {
-    const child = spawnProcess(command, args, { cwd, stdio: 'inherit' })
+  function launch(command, args, cwd, onSuccess, options = {}) {
+    const child = spawnProcess(command, args, { cwd, stdio: 'inherit', ...options })
     processes.push(child)
     child.on('error', (error) => { console.error(error.message); stop(1) })
     child.on('exit', (code) => {
@@ -35,14 +37,29 @@ export function startDevelopment({ spawnProcess = spawn, runtime = process } = {
       if (code === 0 && onSuccess) onSuccess()
       else stop(code ?? 1)
     })
+    return child
   }
 
   runtime.on('SIGINT', () => stop())
   runtime.on('SIGTERM', () => stop())
   console.info('Preparando descargas, catálogo, mapa y totales diarios antes de iniciar la API y el frontend…')
   launch(python, ['-m', 'app.prepare'], backend, () => {
-    launch(python, ['-m', 'uvicorn', 'api.api:app', '--reload'], backend)
-    if (!stopping) launch(runtime.execPath, [vite, '--host', '0.0.0.0'], frontend)
+    const api = launch(python, ['-m', 'uvicorn', 'api.api:app', '--reload'], backend,
+      undefined, {
+        stdio: ['inherit', 'inherit', 'pipe'],
+        // Los logs redirigidos de Python también deben conservar los acentos en Windows.
+        env: { ...runtime.env, PYTHONIOENCODING: 'utf-8' },
+      })
+    let frontendStarted = false
+    const logs = createInterface({ input: api.stderr })
+    logs.on('line', (line) => {
+      runtime.stderr.write(`${line}\n`)
+      if (!stopping && !frontendStarted &&
+          /^INFO:\s+Application startup complete\.$/.test(stripVTControlCharacters(line))) {
+        frontendStarted = true
+        launch(runtime.execPath, [vite, '--host', '0.0.0.0', '--clearScreen', 'false'], frontend)
+      }
+    })
   })
 }
 

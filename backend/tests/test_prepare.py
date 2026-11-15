@@ -83,6 +83,21 @@ class PreparationTests(unittest.TestCase):
         self.assertIn("No se iniciarán los servidores", result.stderr)
         self.assertIn("No existe la ruta de datos FIRMS", result.stderr)
 
+    def test_cli_warnings_are_yellow_in_a_terminal(self):
+        with patch.dict(os.environ, {"FIRMS_PATHS": str(self.root / "missing")}):
+            for module in ("app.prepare", "app.downloads"):
+                with self.subTest(module=module):
+                    script = (
+                        "import runpy, sys\n"
+                        "sys.stdout.isatty = lambda: True\n"
+                        f"runpy.run_module({module!r}, run_name='__main__')\n"
+                    )
+                    result = subprocess.run([sys.executable, "-c", script], capture_output=True,
+                                            text=True, encoding="utf-8", timeout=60)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("\x1b[33mWARNING\x1b[0m", result.stderr)
+                    self.assertIn(DATA_WARNING, result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

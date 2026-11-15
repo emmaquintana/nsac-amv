@@ -16,6 +16,9 @@ en `http://127.0.0.1:8000` y Vite en `http://localhost:5173`. **El frontend sól
 inicia cuando los cuatro conjuntos y todas sus cachés están listos**; si una
 descarga o preparación falla, el comando termina con error y no inicia los
 servidores. La consola muestra el avance de cada etapa por archivo y porcentaje.
+Cuando la API termina de arrancar, se inicia Vite y muestra el enlace al frontend
+con el puerto disponible, sin borrar los mensajes anteriores. Los avisos
+`WARNING` aparecen en amarillo al ejecutar la preparación en una terminal.
 Esta preparación puede tardar varios minutos en el primer arranque; las cachés
 se guardan en disco y se reutilizan mientras los datos no cambien. Vite reenvía las
 solicitudes `/api` al backend. Para

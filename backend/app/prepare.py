@@ -39,7 +39,10 @@ def prepare_data() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    from logging.config import dictConfig
+    from uvicorn.config import LOGGING_CONFIG
+
+    dictConfig(LOGGING_CONFIG)
     try:
         prepare_data()
     except Exception as error:
