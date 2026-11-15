@@ -1,4 +1,4 @@
-"""Armonización exploratoria NASA FIRMS MODIS C6.1 + VIIRS J1/J2 C2.
+"""Armonización exploratoria NASA FIRMS MODIS C6.1 + VIIRS NOAA-20/21 y S-NPP.
 Instalar: pip install -r requirements.txt (desde backend/)
 Ejecutar: python -m app.data.ArmMV_FRP_por_par --horas 24 --superposicion 20
 Los rectángulos scan/track están alineados E-O/N-S (NO son huellas reales).
@@ -10,29 +10,47 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 from pyproj import Geod
+from app.firms import DATA_DIR, FirmsFile, discover_files
 
-ARCHIVOS = [('MODIS','MODIS_C6_1_Global_7d.csv'), ('J1','J1_VIIRS_C2_Global_7d.csv'), ('J2','J2_VIIRS_C2_Global_7d.csv')]
 COLS_PARES = ['id_modis','id_viirs','satelite_modis','satelite_viirs','fecha_modis_utc','fecha_viirs_utc','diferencia_horas','lat_modis','lon_modis','lat_viirs','lon_viirs','distancia_centros_m','area_interseccion_m2','superposicion_viirs_pct','superposicion_modis_pct','frp_modis_mw','frp_viirs_mw','frp_suma_par_mw','confianza_modis_original','confianza_viirs_original']
 
-def leer(ruta, sensor):
-    df = pd.read_csv(ruta, low_memory=False)
+def leer(dataset: FirmsFile, desde=None, hasta=None):
+    ruta = dataset.path
+    # Filtra por bloques antes de cargar las observaciones para el KDTree.
+    bloques = []
+    for bloque in pd.read_csv(ruta, low_memory=False, encoding='utf-8-sig',
+                              dtype={'acq_time': 'string'}, chunksize=100_000):
+        bloque.columns = bloque.columns.str.strip().str.lower()
+        if desde:
+            bloque = bloque.loc[bloque['acq_date'] >= desde]
+        if hasta:
+            bloque = bloque.loc[bloque['acq_date'] <= hasta]
+        bloques.append(bloque)
+    df = pd.concat(bloques) if bloques else pd.read_csv(ruta, nrows=0, encoding='utf-8-sig')
     req = {'latitude','longitude','scan','track','acq_date','acq_time','frp','satellite','confidence'}
     if not req.issubset(df.columns):
         raise ValueError(f'{ruta.name}: faltan {sorted(req-set(df.columns))}')
     df = df.copy()
     for c in ['latitude','longitude','scan','track','frp']:
         df[c] = pd.to_numeric(df[c], errors='coerce')
-    hora = pd.to_numeric(df['acq_time'],errors='coerce').astype('Int64').astype('string').str.zfill(4)
+    # Seleccionar una columna como Series evita la unión Series | NAType que
+    # infiere basedpyright para pd.to_numeric sobre un resultado ambiguo de [].
+    tiempos = pd.Series(df['acq_time'], dtype='string')
+    hora = tiempos.str.strip().str.zfill(4)
+    hora = hora.where(hora.str.fullmatch(r'(?:[01][0-9]|2[0-3])[0-5][0-9]', na=False))
     df['fecha_utc'] = pd.to_datetime(df['acq_date'].astype('string')+' '+hora.str[:2]+':'+hora.str[2:], utc=True, errors='coerce')
     df['scan_m'] = df['scan']*1000
     df['track_m'] = df['track']*1000
-    df['instrumento'] = 'MODIS' if sensor=='MODIS' else 'VIIRS'
-    df['fuente'] = sensor
-    df['id_observacion'] = sensor+'_'+df.index.astype(str)
+    df['instrumento'] = dataset.source
+    df['fuente'] = dataset.product or dataset.source
+    df['producto'] = dataset.product
+    df['tipo_datos'] = dataset.data_kind
+    df['archivo_origen'] = ruta.name
+    df['id_observacion'] = dataset.tag+'-'+(df.index+2).astype(str)
     df['confianza_original'] = df['confidence'].astype('string')
     valid = (df['latitude'].between(-90,90)&df['longitude'].between(-180,180)&
              df['scan_m'].gt(0)&df['track_m'].gt(0)&df['frp'].ge(0)&df['fecha_utc'].notna())
-    print(f'{sensor}: {len(df):,} filas; inválidas descartadas: {(~valid).sum():,}',flush=True)
+    print(f'{ruta.name} ({dataset.source}): {len(df):,} filas; inválidas descartadas: {(~valid).sum():,}',flush=True)
     return df.loc[valid].reset_index(drop=True)
 
 def xyz(df):
@@ -42,25 +60,45 @@ def xyz(df):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    carpeta_datos=Path(__file__).resolve().parent
-    p.add_argument('--carpeta',type=Path,default=carpeta_datos,help='Carpeta con los 3 CSV')
+    p.add_argument('--carpeta',type=Path,default=None,help='Carpeta de CSV FIRMS; busca recursivamente')
+    p.add_argument('--entrada',type=Path,nargs='+',help='Uno o varios archivos CSV y/o carpetas FIRMS')
+    p.add_argument('--desde',type=str,help='Fecha UTC inicial inclusiva (AAAA-MM-DD)')
+    p.add_argument('--hasta',type=str,help='Fecha UTC final inclusiva (AAAA-MM-DD)')
     p.add_argument('--salida',type=Path,default=None,help='Carpeta de salida (por defecto, data/resultados_armonizacion)')
     p.add_argument('--horas',type=float,default=24)
     p.add_argument('--superposicion',type=float,default=20,help='Porcentaje mínimo de VIIRS dentro de MODIS; 0 permite toda intersección positiva')
     p.add_argument('--lote',type=int,default=500)
     a=p.parse_args()
     if not (0<=a.superposicion<=100) or a.horas<0 or a.lote<1: p.error('Parámetros inválidos')
-    base=a.carpeta.resolve(); out=(a.salida or base/'resultados_armonizacion').resolve();out.mkdir(parents=True,exist_ok=True)
+    if a.carpeta and a.entrada: p.error('Usa --carpeta o --entrada, no ambos')
+    from datetime import date
+    try:
+        if a.desde: a.desde = date.fromisoformat(a.desde).isoformat()
+        if a.hasta: a.hasta = date.fromisoformat(a.hasta).isoformat()
+        if a.desde and a.hasta and a.desde > a.hasta: p.error('--desde debe ser anterior o igual a --hasta')
+        archivos = discover_files(a.entrada or ([a.carpeta] if a.carpeta else None))
+    except (ValueError, FileNotFoundError) as error:
+        p.error(str(error))
+    base=(a.carpeta or DATA_DIR).resolve()
+    out=(a.salida or base/'resultados_armonizacion').resolve()
     datos=[]
-    for sensor,nombre in ARCHIVOS:
-        ruta=base/nombre
-        if not ruta.exists():p.error(f'No existe {ruta}')
-        datos.append(leer(ruta,sensor))
-    m=datos[0];v=pd.concat(datos[1:],ignore_index=True)
-    norm=pd.concat(datos,ignore_index=True)
-    norm.to_csv(out/'observaciones_normalizadas.csv',index=False)
-    print('Guardadas observaciones normalizadas:',len(norm),flush=True)
-    del norm,datos
+    try:
+        for dataset in archivos:
+            datos.append(leer(dataset,a.desde,a.hasta))
+    except ValueError as error:
+        p.error(str(error))
+    m_parts=[df for df in datos if not df.empty and df['instrumento'].iat[0]=='MODIS']
+    v_parts=[df for df in datos if not df.empty and df['instrumento'].iat[0]=='VIIRS']
+    if not m_parts or not v_parts:
+        p.error('Se necesitan observaciones válidas MODIS y VIIRS en el período seleccionado')
+    m=pd.concat(m_parts,ignore_index=True);v=pd.concat(v_parts,ignore_index=True)
+    out.mkdir(parents=True,exist_ok=True)
+    columnas=list(dict.fromkeys(column for df in datos for column in df.columns))
+    for index,df in enumerate(datos):
+        df.reindex(columns=columnas).to_csv(out/'observaciones_normalizadas.csv',
+            index=False,mode='w' if index==0 else 'a',header=index==0)
+    print('Guardadas observaciones normalizadas:',sum(len(df) for df in datos),flush=True)
+    del datos,m_parts,v_parts
     # KDTree en coordenadas esféricas 3D: sin problemas con antimeridiano.
     # Radio conservador basado en diagonales máximas de ambas huellas.
     r_m=np.hypot(m['scan_m'],m['track_m']).max()/2
